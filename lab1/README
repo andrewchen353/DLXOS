@@ -1,0 +1,7 @@
+Compile by doing the following:
+-os
+    make clean
+    make
+-apps
+    make
+    make run
