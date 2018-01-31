@@ -56,7 +56,9 @@ int LockAcquire(Lock *);
 int LockRelease(Lock *);
 
 typedef struct Cond {
-  // Your code goes here
+  Queue   waiting;
+  uint32  inuse;
+  lock_t  lock; 
 } Cond;
 
 int CondInit(Cond *);

@@ -13,6 +13,7 @@
 
 static Sem sems[MAX_SEMS]; 	// All semaphores in the system
 static Lock locks[MAX_LOCKS];   // All locks in the system
+static Cond conds[MAX_CONDS];   // All locks in the system
 
 extern struct PCB *currentPCB; 
 //----------------------------------------------------------------------
@@ -310,6 +311,20 @@ int LockHandleRelease(lock_t lock) {
 }
 
 //--------------------------------------------------------------------------
+//  CondInit
+//--------------------------------------------------------------------------
+int CondInit(Cond * cond)
+{
+  if (!cond) return SYNC_FAIL;
+  if (AQueueInit(&cond->waiting) != QUEUE_SUCCESS)
+  {
+    printf("FATAL ERROR: could not initialize conditional waiting queue in CondInit\n");
+    exitsim();
+  }
+  return SYNC_SUCCESS;
+}
+
+//--------------------------------------------------------------------------
 //	CondCreate
 //
 //	This function grabs a condition variable from the system-wide pool of
@@ -324,8 +339,28 @@ int LockHandleRelease(lock_t lock) {
 //	should return handle of the condition variable.
 //--------------------------------------------------------------------------
 cond_t CondCreate(lock_t lock) {
-  // Your code goes here
-  return SYNC_FAIL;
+  cond_t cond;
+  uint32 intrval;
+
+  if (lock == INVALID_LOCK || locks[lock].inuse == 0)
+    return INVALID_COND;
+
+  // grabbing a semaphore should be an atomic operation
+  intrval = DisableIntrs();
+  for (cond = 0; cond < MAX_CONDS; cond++)
+  {
+    if (conds[cond].inuse == 0)
+    {
+      conds[cond].inuse = 1;
+      conds[cond].lock = lock;
+      break;
+    }
+  }
+  RestoreIntrs(intrval);
+  if (cond == MAX_CONDS) return INVALID_COND;
+  if (CondInit(&conds[cond]) != SYNC_SUCCESS) return SYNC_FAIL;
+
+  return cond;
 }
 
 //---------------------------------------------------------------------------
@@ -338,8 +373,8 @@ cond_t CondCreate(lock_t lock) {
 //	to CondCreate. This implies the lock handle needs to be stored
 //	somewhere. hint! hint!) for this function to
 //	succeed. If the calling process has not acquired the lock, it does not
-//	block on the condition variable, but a value of 1 is returned
-//	indicating that the call was not successful. Return value of 0 implies
+//	block on the condition variable, but a value of -1 is returned
+//	indicating that the call was not successful. Return value of 1 implies
 //	that the call was successful.
 //
 //	This function should be written in such a way that the calling process
@@ -351,9 +386,19 @@ cond_t CondCreate(lock_t lock) {
 //	"actually" wake up until the process calling CondHandleSignal or
 //	CondHandleBroadcast releases the lock explicitly.
 //---------------------------------------------------------------------------
+int CondWait (Cond* c)
+{
+  
+}
+
 int CondHandleWait(cond_t c) {
   // Your code goes here
-  return SYNC_SUCCESS;
+  if (c < 0) return SYNC_FAIL;
+  if (c >= MAX_CONDS) return SYNC_FAIL;
+  if (!conds[c].inuse) return SYNC_FAIL;
+  if (c.lock == INVALID_LOCK) return SYNC_FAIL;
+  
+  return CondWait(&c);
 }
 
 
