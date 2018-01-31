@@ -1,1 +1,12 @@
-q1
+-How many semaphores are available in DLXOS?
+	A maximum of 32
+-How many locks are available in DLXOS?
+	A maximum of 64
+-How is a semaphore created in DLXOS?
+	A call to the function SemCreate with the parameter being the number of semaphores desired
+-Explain how sem_signal and sem_wait work.
+	SemSignal will disable interrupts then increment the count of the input variable sem and will check to see if there is a process to be woken up. If there is a process to be woken up it will take the first process from the queue and create a pcb out of it. Then it will remove the process from the queue and wake up the process. Then it will restore all of the interrupts.
+
+	SemWait will disable interrupts then checks to see if the count is less than or equal or zero. If it is, it will check to make sure that semaphore can be added to the queue and then put the process to sleep. If the count greater than zero then process will continue to run without adding it to the queue. Then it will decrement the count of the input variable sem and restore interrupts.
+-What is a handle and how is it used to access semaphores in DLXOS?
+	A handle is an identifier used for allocating physical shared memory. The handle will be the index to the array of semaphores.
