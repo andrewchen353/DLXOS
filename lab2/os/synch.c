@@ -401,7 +401,6 @@ int CondWait (Cond* c)
     printf("FATAL ERROR: could not allocate link for condition queue in CondWait!\n");
     exitsim();
   }
-  printf("-------------------ADDING TO QUEUE-----------------------\n");
   if (AQueueInsertLast (&c->waiting, l) != QUEUE_SUCCESS) {
     printf("FATAL ERROR: could not insert new link into condition waiting queue in CondWait!\n");
     exitsim();
@@ -454,9 +453,7 @@ int CondSignal(Cond *c) {
   intrs = DisableIntrs ();
   dbprintf ('s', "CondSignal: Process %d Signalling on cond %d.\n", GetCurrentPid(), (int)(c-conds));
   // Increment internal counter before checking value
-    printf("********************CONDSIGNAL*****************\n");
   if (!AQueueEmpty(&(c->waiting))) { // there is a process to wake up
-    printf("********************CONDSIGNAL IF*****************\n");
     l = AQueueFirst(&(c->waiting));
     pcb = (PCB *)AQueueObject(l);
     if (AQueueRemove(&l) != QUEUE_SUCCESS) { 
