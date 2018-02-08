@@ -12,7 +12,7 @@ void main (int argc, char* argv[])
   cond_t c_empty;           // Condition that the buffer is empty
   sem_t s_procs_completed;  // Semaphore to signal the original process that we're done
   lock_t lock;              // Lock
-  char* c = "Hello world";  // Character to be inserted into buffer
+  char c;                   // Character to be inserted into buffer
   int i = 0;
 
   if (argc != 6) { 
@@ -36,24 +36,22 @@ void main (int argc, char* argv[])
   // Now print a message to show that everything worked
   while (i < 11)
   {
-    //cond_wait(c_empty);
     lock_acquire(lock);
-    if ((cb->head + 1) % cb->size != cb->tail)
+    if (cb->head != cb->tail)
     {
-      cb->buff[cb->head] = c[i];
-      Printf("Producer %d inserted: %c\n", getpid(), cb->buff[cb->head]);
-      cb->head = (++(cb->head))%cb->size;
+      Printf("Consumer %d removed: %c\n", getpid(), cb->buff[cb->tail]);
+      cb->tail = (++(cb->tail))%cb->size;
       i++;
-      cond_signal(c_empty);
+      cond_signal(c_full);
     }
     else
-      cond_wait(c_full);
+      cond_wait(c_empty);
     lock_release(lock);
-    //cond_signal(c_full);
+    //cond_signal(c_empty);
   }
 
   // Signal the semaphore to tell the original process that we're done
-  Printf("producer: PID %d is complete.\n", getpid());
+  Printf("consumer: PID %d is complete.\n", getpid());
   if(sem_signal(s_procs_completed) != SYNC_SUCCESS) {
     Printf("Bad semaphore s_procs_completed (%d) in ", s_procs_completed); Printf(argv[0]); Printf(", exiting...\n");
     Exit();

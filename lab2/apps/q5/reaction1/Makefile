@@ -6,8 +6,8 @@
 # this way because the build procedure for all apps is basically the same.
 
 
-SRCS=spawn_consumer.c
-EXEC=spawn_consumer.dlx.obj
+SRCS=reaction1.c
+EXEC=reaction1.dlx.obj
 
 include ../Makerules
 
