@@ -5,6 +5,9 @@
 #include "queue.h"
 #include "mbox.h"
 
+static mbox_message mm[MBOX_NUM_BUFFERS];
+static mbox mailbox[MBOX_NUM_MBOXES];
+
 //-------------------------------------------------------
 //
 // void MboxModuleInit();
@@ -19,6 +22,10 @@
 //-------------------------------------------------------
 
 void MboxModuleInit() {
+  mbox_t m;
+  
+  for (m = 0; m < MBOX_NUM_MBOXES; m++) 
+    mailbox[m].inuse = 0;
 }
 
 //-------------------------------------------------------
@@ -32,12 +39,59 @@ void MboxModuleInit() {
 //
 //-------------------------------------------------------
 mbox_t MboxCreate() {
-  return MBOX_FAIL;
+  mbox_t m;
+  int i;
+  uint32 intrval;
+
+  intrval = DisableIntrs();
+  for(m = 0; m < MBOX_NUM_MBOXES; m++)
+  {
+    if (!mailbox[m].inuse)
+    {
+      mailbox[m].inuse = 1;
+
+      for (i = 0; i < PROCESS_MAX_PROCS; i++)
+        mailbox[m].procs[i] = 0;
+
+      mailbox[m].lock = lock_create();
+      if (mailbox[m].lock == SYNC_FAIL)
+      {
+        printf("FATAL ERROR: could not create lock\n");
+        exitsim();
+      }
+
+      mailbox[m].notFull = cond_create(mailbox[m].lock);
+      if (mailbox[m].notFull == INVALID_COND)
+      {
+        printf("FATAL ERROR: could not create condition notFull\n");
+        exitsim();
+      }
+
+      mailbox[m].notEmpty = cond_create(mailbox[m].lock);
+      if (mailbox[m].notEmpty == INVALID_COND)
+      {
+        printf("FATAL ERROR: could not create condition notEmpty\n");
+        exitsim();
+      }
+
+      if (AQueueInit(&mailbox[m].messageQ) != QUEUE_SUCCESS)
+      {
+        printf("FATAL ERROR: could not initialize queue\n");
+        exitsim();
+      }
+      break;
+    }
+  }
+  RestoreIntrs(intrval);
+
+  if (m == MBOX_NUM_MBOXES) return MBOX_FAIL;
+
+  return m;
 }
 
 //-------------------------------------------------------
 // 
-// void MboxOpen(mbox_t);
+// int MboxOpen(mbox_t);
 //
 // Open the mailbox for use by the current process.  Note
 // that it is assumed that the internal lock/mutex handle 
@@ -50,7 +104,16 @@ mbox_t MboxCreate() {
 //
 //-------------------------------------------------------
 int MboxOpen(mbox_t handle) {
-  return MBOX_FAIL;
+  lock_t l;
+  if ((l = lock_acquire(mailbox[handle].lock)) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not open mailbox\n");
+    //exitsim();
+    return MBOX_FAIL;
+  }
+  
+  mailbox[handle].procs[getpid()] = true;
+  return MBOX_SUCCESS;
 }
 
 //-------------------------------------------------------
@@ -67,7 +130,23 @@ int MboxOpen(mbox_t handle) {
 //
 //-------------------------------------------------------
 int MboxClose(mbox_t handle) {
-  return MBOX_FAIL;
+  lock_t l;
+  int i;
+
+  mailbox[handle].procs[getpid()] = false;
+
+  for (i = 0; i < PROCESS_MAX_PROCS; i++)
+    if (mailbox[handle].procs[i] == true)
+      break
+  if (i == PROCESS_MAX_PROCS)
+    mailbox[handle].inuse = 0;
+
+  if ((l = lock_release(mailbox[handle].lock)) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not close mailbox\n");
+    return MBOX_FAIL;
+  }
+  return MBOX_SUCCESS;
 }
 
 //-------------------------------------------------------
