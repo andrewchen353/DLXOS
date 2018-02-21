@@ -846,6 +846,8 @@ void main (int argc, char *argv[])
   dbprintf ('i', "After initializing synchronization tools.\n");
   KbdModuleInit ();
   dbprintf ('i', "After initializing keyboard.\n");
+  MboxModuleInit ();
+  dbprintf ('i', "After initializing mailbox.\n");
   ClkModuleInit();
   for (i = 0; i < 100; i++) {
     buf[i] = 'a';

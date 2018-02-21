@@ -23,9 +23,15 @@ static mbox mailbox[MBOX_NUM_MBOXES];
 
 void MboxModuleInit() {
   mbox_t m;
+  uint32 intrval;
   
+  intrval = DisableIntrs();
   for (m = 0; m < MBOX_NUM_MBOXES; m++) 
     mailbox[m].inuse = 0;
+  for (m = 0; m < MBOX_NUM_BUFFERS; m++)
+    mm[m].inuse = 0;
+
+  RestoreIntrs(intrval);
 }
 
 //-------------------------------------------------------
@@ -53,21 +59,21 @@ mbox_t MboxCreate() {
       for (i = 0; i < PROCESS_MAX_PROCS; i++)
         mailbox[m].procs[i] = 0;
 
-      mailbox[m].lock = lock_create();
+      mailbox[m].lock = LockCreate();
       if (mailbox[m].lock == SYNC_FAIL)
       {
         printf("FATAL ERROR: could not create lock\n");
         exitsim();
       }
 
-      mailbox[m].notFull = cond_create(mailbox[m].lock);
+      mailbox[m].notFull = CondCreate(mailbox[m].lock);
       if (mailbox[m].notFull == INVALID_COND)
       {
         printf("FATAL ERROR: could not create condition notFull\n");
         exitsim();
       }
 
-      mailbox[m].notEmpty = cond_create(mailbox[m].lock);
+      mailbox[m].notEmpty = CondCreate(mailbox[m].lock);
       if (mailbox[m].notEmpty == INVALID_COND)
       {
         printf("FATAL ERROR: could not create condition notEmpty\n");
@@ -105,14 +111,21 @@ mbox_t MboxCreate() {
 //-------------------------------------------------------
 int MboxOpen(mbox_t handle) {
   lock_t l;
-  if ((l = lock_acquire(mailbox[handle].lock)) != SYNC_SUCCESS)
+  int intrval;
+  intrval = DisableIntrs();
+  if ((l = LockHandleAcquire(mailbox[handle].lock)) != SYNC_SUCCESS)
   {
     printf("FATAL ERROR: could not open mailbox\n");
-    //exitsim();
     return MBOX_FAIL;
   }
-  
-  mailbox[handle].procs[getpid()] = true;
+
+  // empty queue if unused
+  if (!mailbox[handle].inuse)
+    if (AQueueInit(&mailbox[handle].messageQ) != QUEUE_SUCCESS)
+      return MBOX_FAIL;
+
+  mailbox[handle].procs[GetCurrentPid()] = 1;
+  RestoreIntrs(intrval); 
   return MBOX_SUCCESS;
 }
 
@@ -130,22 +143,27 @@ int MboxOpen(mbox_t handle) {
 //
 //-------------------------------------------------------
 int MboxClose(mbox_t handle) {
-  lock_t l;
   int i;
+  int intrval;
 
-  mailbox[handle].procs[getpid()] = false;
+  intrval = DisableIntrs();
+  if (!mailbox[handle].inuse)
+    return MBOX_FAIL;
+
+  mailbox[handle].procs[GetCurrentPid()] = 0;
 
   for (i = 0; i < PROCESS_MAX_PROCS; i++)
-    if (mailbox[handle].procs[i] == true)
-      break
+    if (mailbox[handle].procs[i] == 1)
+      break;
   if (i == PROCESS_MAX_PROCS)
     mailbox[handle].inuse = 0;
 
-  if ((l = lock_release(mailbox[handle].lock)) != SYNC_SUCCESS)
+  if (LockHandleRelease(mailbox[handle].lock) != SYNC_SUCCESS)
   {
     printf("FATAL ERROR: could not close mailbox\n");
     return MBOX_FAIL;
   }
+  RestoreIntrs(intrval); 
   return MBOX_SUCCESS;
 }
 
@@ -166,7 +184,57 @@ int MboxClose(mbox_t handle) {
 //
 //-------------------------------------------------------
 int MboxSend(mbox_t handle, int length, void* message) {
-  return MBOX_FAIL;
+  int i;
+  Link* l;
+  int intrval;
+  char* c;
+
+  if (length > MBOX_MAX_MESSAGE_LENGTH)
+    // message too long
+    return MBOX_FAIL;
+
+  if (!mailbox[handle].inuse)
+    return MBOX_FAIL;
+
+  intrval = DisableIntrs();
+
+  // check queue not full
+  if (mailbox[handle].messageQ.nitems >= MBOX_MAX_BUFFERS_PER_MBOX)
+    if (CondHandleWait(mailbox[handle].notFull) != SYNC_SUCCESS)
+      return MBOX_FAIL;
+
+  for (i = 0; i < MBOX_NUM_BUFFERS; i++)
+    if (!mm[i].inuse)
+      break;
+  if (i == MBOX_NUM_BUFFERS)
+    return MBOX_FAIL;
+
+  c = mm[i].buffer;
+  c = (char*) message;
+  //*(mm[i].buffer) = (char *)message; //??????
+  //mm[i].buffer = (char *)&message;
+  /*for (j = 0; j < length; j++)
+    mm[i].buffer[j] = (char)message[j];*/
+
+  mm[i].length = length;
+  mm[i].inuse = 1;
+  if ((l = AQueueAllocLink((void*)&mm[i])) == NULL)
+  {
+    printf("FATAL ERROR: could not allocate link for queue in MboxSend\n");
+    exitsim();
+  }
+  if (AQueueInsertLast(&mailbox[i].messageQ, l) != QUEUE_SUCCESS)
+  {
+    printf("FATAL ERROR: coudl not insert new link into queue in MBoxSend\n");
+    exitsim();
+  }
+
+  if (CondHandleSignal(mailbox[handle].notEmpty) != SYNC_SUCCESS)
+    return MBOX_FAIL;
+
+  RestoreIntrs(intrval); 
+ 
+  return MBOX_SUCCESS;
 }
 
 //-------------------------------------------------------
@@ -186,7 +254,46 @@ int MboxSend(mbox_t handle, int length, void* message) {
 //
 //-------------------------------------------------------
 int MboxRecv(mbox_t handle, int maxlength, void* message) {
-  return MBOX_FAIL;
+  int intrval;
+  mbox_message* m;
+  Link* l;
+
+  if (!mailbox[handle].inuse)
+    return MBOX_FAIL;  
+
+  if (maxlength/8 < mm[handle].length)
+    return MBOX_FAIL;
+
+  intrval = DisableIntrs();
+  
+  if (CondHandleWait(mailbox[handle].notEmpty) != SYNC_SUCCESS)
+    return MBOX_FAIL;
+
+  // pop from queue
+  if (!AQueueEmpty(&mailbox[handle].messageQ))
+  {
+    l = AQueueFirst(&mailbox[handle].messageQ);
+    m = (mbox_message *)AQueueObject(l);
+    if (AQueueRemove(&l) != QUEUE_SUCCESS)
+    {
+      printf("FATAL ERROR: could not remove link from mailbox queue\n");
+      exitsim();
+    }
+  }
+  message = &(m->buffer);
+  m->inuse = 0;
+/*  for (i = 0; i < mm[handle].length; i++)
+  {
+    *message = mm[handle].buffer[i];
+    message += 8;
+  }*/
+
+  if (CondHandleSignal(mailbox[handle].notFull) != SYNC_SUCCESS)
+    return MBOX_FAIL;
+
+  RestoreIntrs(intrval); 
+
+  return MBOX_SUCCESS;
 }
 
 //--------------------------------------------------------------------------------
@@ -202,5 +309,29 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
 //
 //--------------------------------------------------------------------------------
 int MboxCloseAllByPid(int pid) {
-  return MBOX_FAIL;
+  int i, j;
+  int intrval;
+
+  intrval = DisableIntrs();
+  for (i = 0; i < MBOX_NUM_MBOXES; i++)
+  {
+    for (j = 0; j < PROCESS_MAX_PROCS; j++) 
+    {
+      if (mailbox[i].procs[j] && j != pid)
+        break; 
+    }
+    if (mailbox[i].procs[pid] && j == PROCESS_MAX_PROCS && mailbox[i].inuse)
+    {
+      mailbox[i].procs[pid] = 0;
+      mailbox[i].inuse = 0;
+      if (LockHandleRelease(mailbox[i].lock) != SYNC_SUCCESS)
+      {
+        printf("FATAL ERROR: could not close mailbox\n");
+        return MBOX_FAIL;
+      }
+    }
+  }
+
+  RestoreIntrs(intrval); 
+  return MBOX_SUCCESS;
 }
