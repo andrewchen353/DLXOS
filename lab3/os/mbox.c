@@ -8,6 +8,8 @@
 static mbox_message mm[MBOX_NUM_BUFFERS];
 static mbox mailbox[MBOX_NUM_MBOXES];
 
+//////LOCK ACQUIRE AND RELEASE EVERY TIME ACCESS MAILBOX!!!!!!!!!!!!!!!
+
 //-------------------------------------------------------
 //
 // void MboxModuleInit();
@@ -90,7 +92,11 @@ mbox_t MboxCreate() {
   }
   RestoreIntrs(intrval);
 
-  if (m == MBOX_NUM_MBOXES) return MBOX_FAIL;
+  if (m == MBOX_NUM_MBOXES) 
+  {
+    printf("ERROR: No more mailboxes available\n");
+    return MBOX_FAIL;
+  }
 
   return m;
 }
@@ -122,7 +128,10 @@ int MboxOpen(mbox_t handle) {
   // empty queue if unused
   if (!mailbox[handle].inuse)
     if (AQueueInit(&mailbox[handle].messageQ) != QUEUE_SUCCESS)
+    {
+      printf("ERROR: could initialize mailbox queue\n");
       return MBOX_FAIL;
+    }
 
   mailbox[handle].procs[GetCurrentPid()] = 1;
   RestoreIntrs(intrval); 
@@ -148,7 +157,10 @@ int MboxClose(mbox_t handle) {
 
   intrval = DisableIntrs();
   if (!mailbox[handle].inuse)
+  {
+    printf("ERROR: mailbox given is not inuse\n");
     return MBOX_FAIL;
+  }
 
   mailbox[handle].procs[GetCurrentPid()] = 0;
 
@@ -189,25 +201,37 @@ int MboxSend(mbox_t handle, int length, void* message) {
   int intrval;
   char* c;
 
-  if (length > MBOX_MAX_MESSAGE_LENGTH)
+  if (length > MBOX_MAX_MESSAGE_LENGTH) 
+  {
     // message too long
+    printf("ERROR: SEND Message length greather than max message length\n");
     return MBOX_FAIL;
+  }
 
   if (!mailbox[handle].inuse)
+  {
+    printf("ERROR: SEND Mailbox is not inuse\n");
     return MBOX_FAIL;
+  }
 
   intrval = DisableIntrs();
 
   // check queue not full
   if (mailbox[handle].messageQ.nitems >= MBOX_MAX_BUFFERS_PER_MBOX)
     if (CondHandleWait(mailbox[handle].notFull) != SYNC_SUCCESS)
+    {
+      printf("ERROR: SEND Mailbox is full?\n");
       return MBOX_FAIL;
+    }
 
   for (i = 0; i < MBOX_NUM_BUFFERS; i++)
     if (!mm[i].inuse)
       break;
   if (i == MBOX_NUM_BUFFERS)
+  {
+    printf("ERROR: SEND No more mailboxes are available\n");
     return MBOX_FAIL;
+  }
 
   c = mm[i].buffer;
   c = (char*) message;
@@ -220,17 +244,20 @@ int MboxSend(mbox_t handle, int length, void* message) {
   mm[i].inuse = 1;
   if ((l = AQueueAllocLink((void*)&mm[i])) == NULL)
   {
-    printf("FATAL ERROR: could not allocate link for queue in MboxSend\n");
+    printf("FATAL ERROR: SEND could not allocate link for queue in MboxSend\n");
     exitsim();
   }
   if (AQueueInsertLast(&mailbox[i].messageQ, l) != QUEUE_SUCCESS)
   {
-    printf("FATAL ERROR: coudl not insert new link into queue in MBoxSend\n");
+    printf("FATAL ERROR: SEND could not insert new link into queue in MBoxSend\n");
     exitsim();
   }
 
   if (CondHandleSignal(mailbox[handle].notEmpty) != SYNC_SUCCESS)
+  {
+    printf("ERROR: SEND Mailbox is empty?\n");
     return MBOX_FAIL;
+  }
 
   RestoreIntrs(intrval); 
  
@@ -259,15 +286,24 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
   Link* l;
 
   if (!mailbox[handle].inuse)
+  {
+    printf("ERROR: RECV Mailbox not in use\n");
     return MBOX_FAIL;  
+  }
 
   if (maxlength/8 < mm[handle].length)
+  {
+    printf("ERROR: RECV maxlength is too large\n");
     return MBOX_FAIL;
+  }
 
   intrval = DisableIntrs();
   
   if (CondHandleWait(mailbox[handle].notEmpty) != SYNC_SUCCESS)
+  {
+    printf("ERROR: RECV mailbox is empty?\n");
     return MBOX_FAIL;
+  }
 
   // pop from queue
   if (!AQueueEmpty(&mailbox[handle].messageQ))
@@ -276,7 +312,7 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
     m = (mbox_message *)AQueueObject(l);
     if (AQueueRemove(&l) != QUEUE_SUCCESS)
     {
-      printf("FATAL ERROR: could not remove link from mailbox queue\n");
+      printf("FATAL ERROR: RECV could not remove link from mailbox queue\n");
       exitsim();
     }
   }
@@ -289,7 +325,10 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
   }*/
 
   if (CondHandleSignal(mailbox[handle].notFull) != SYNC_SUCCESS)
+  {
+    printf("ERROR: RECV mailbox is full?\n");
     return MBOX_FAIL;
+  }
 
   RestoreIntrs(intrval); 
 

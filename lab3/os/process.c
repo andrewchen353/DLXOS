@@ -718,7 +718,7 @@ ProcessGetFromFile (int fd, unsigned char *buf, uint32 *addr, int max)
       // If we're going to go to a new address, we break out of the
       // loop and return what we've got already.
       if (nbytes > 0) {
-	break;
+	      break;
       }
       *addr = dstrtol (lpos, &lpos, 16);
       dbprintf ('f', "New address is 0x%x.\n", (int)(*addr));
@@ -729,14 +729,14 @@ ProcessGetFromFile (int fd, unsigned char *buf, uint32 *addr, int max)
     lpos++;	// skip past colon
     while (1) {
       while (((*lpos) == ' ') || (*lpos == '\t')) {
-	lpos++;
+      	lpos++;
       }
       if (*lpos == '\n') {
-	lpos++;
-	break;
+      	lpos++;
+      	break;
       } else if (!(isxdigit (*lpos) && isxdigit (*(lpos+1)))) {
-     // Exit loop if at least one digit isn't a hex digit.
-	break;
+        // Exit loop if at least one digit isn't a hex digit.
+      	break;
       }
       pos[nbytes++] = (getxvalue(*lpos) * 16) + getxvalue(*(lpos+1));
       lpos += 2;
