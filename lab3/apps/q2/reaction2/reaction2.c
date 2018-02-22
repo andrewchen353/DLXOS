@@ -22,6 +22,22 @@ void main (int argc, char* argv[])
   so2_handle = dstrtol(argv[3], NULL, 10); // The "10" means base 10
   o2_handle = dstrtol(argv[4], NULL, 10); // The "10" means base 10
 
+  if (mbox_open(so4_handle) != MBOX_SUCCESS)
+  {
+    Printf("ERROR: failed to open so4 %d mailbox\n", so4_handle);
+    Exit();
+  }
+  if (mbox_open(so2_handle) != MBOX_SUCCESS)
+  {
+    Printf("ERROR: failed to open so2 %d mailbox\n",so2_handle);
+    Exit();
+  }
+  if (mbox_open(o2_handle) != MBOX_SUCCESS)
+  {
+    Printf("ERROR: failed to open o2 %d mailbox\n", o2_handle);
+    Exit();
+  }
+
   // recv so4 molecules
   if(mbox_recv(so4_handle, 24, msg) != MBOX_SUCCESS) {
     Printf("Bad so4 mailbox recv (%d) in ", so4_handle); Printf(argv[0]); Printf(", exiting...\n");
@@ -39,6 +55,22 @@ void main (int argc, char* argv[])
     Exit();
   }
   Printf("Process %d sent 1 SO2 and 1 O2\n", getpid());
+
+  if (mbox_close(so4_handle) != MBOX_SUCCESS)
+  {
+    Printf("ERROR: failed to close so4 %d mailbox\n", so4_handle);
+    Exit();
+  }
+  if (mbox_close(so2_handle) != MBOX_SUCCESS)
+  {
+    Printf("ERROR: failed to close so2 %d mailbox\n", so2_handle);
+    Exit();
+  }
+  if (mbox_close(o2_handle) != MBOX_SUCCESS)
+  {
+    Printf("ERROR: failed to close o2 %d mailbox\n", o2_handle);
+    Exit();
+  }
 
   // Signal the semaphore to tell the original process that we're done
   Printf("Reaction 2: PID %d is complete.\n", getpid());
