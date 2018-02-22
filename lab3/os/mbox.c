@@ -216,6 +216,13 @@ int MboxSend(mbox_t handle, int length, void* message) {
 
   intrval = DisableIntrs();
 
+  // acquire lock
+  if (LockHandleAcquire(mailbox[handle].lock) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not get lock for mailbox in send\n");
+    return MBOX_FAIL;
+  }
+
   // check queue not full
   if (mailbox[handle].messageQ.nitems >= MBOX_MAX_BUFFERS_PER_MBOX)
     if (CondHandleWait(mailbox[handle].notFull) != SYNC_SUCCESS)
@@ -251,6 +258,13 @@ int MboxSend(mbox_t handle, int length, void* message) {
   {
     printf("FATAL ERROR: SEND could not insert new link into queue in MBoxSend\n");
     exitsim();
+  }
+
+  // release lock
+  if (LockHandleRelease(mailbox[handle].lock) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not release lock for mailbox in send\n");
+    return MBOX_FAIL;
   }
 
   if (CondHandleSignal(mailbox[handle].notEmpty) != SYNC_SUCCESS)
@@ -305,6 +319,13 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
     return MBOX_FAIL;
   }
 
+  // acquire lock
+  if (LockHandleAcquire(mailbox[handle].lock) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not get lock for mailbox in send\n");
+    return MBOX_FAIL;
+  }
+
   // pop from queue
   if (!AQueueEmpty(&mailbox[handle].messageQ))
   {
@@ -323,6 +344,13 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
     *message = mm[handle].buffer[i];
     message += 8;
   }*/
+
+  // release lock
+  if (LockHandleRelease(mailbox[handle].lock) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not release lock for mailbox in send\n");
+    return MBOX_FAIL;
+  }
 
   if (CondHandleSignal(mailbox[handle].notFull) != SYNC_SUCCESS)
   {
