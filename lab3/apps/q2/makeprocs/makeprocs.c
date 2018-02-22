@@ -61,9 +61,6 @@ void main (int argc, char *argv[])
   o2_handle = mbox_create();
   h2so4_handle = mbox_create();
 
-  Printf("%d %d %d %d %d %d \n", h2o_handle, so4_handle, h2_handle, so2_handle, o2_handle, h2so4_handle);
-
-
   if (mbox_open(h2o_handle) != MBOX_SUCCESS) {
     Printf("Could not open h2o mailbox in "); Printf(argv[0]); Printf("\n");
     Exit();
@@ -99,13 +96,6 @@ void main (int argc, char *argv[])
   ditoa(so2_handle, so2_str);
   ditoa(o2_handle, o2_str);
   ditoa(h2so4_handle, h2so4_str);
-  //Printf("%s %s %s %s %s %s \n", h2o_str, so4_str, h2_str, so2_str, o2_str, h2so4_str);
-  Printf("%s\n", h2o_str);
-  Printf("%s\n", so4_str);
-  Printf("%s\n", h2_str);
-  Printf("%s\n", so2_str);
-  Printf("%s\n", o2_str);
-  Printf("%s\n", h2so4_str);
   
   // Now we can create the processes.  Note that you MUST end your call to
   // process_create with a NULL argument so that the operating system
