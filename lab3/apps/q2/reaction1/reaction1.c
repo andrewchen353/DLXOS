@@ -22,22 +22,6 @@ void main (int argc, char* argv[])
   h2_handle = dstrtol(argv[3], NULL, 10); // The "10" means base 10
   o2_handle = dstrtol(argv[4], NULL, 10); // The "10" means base 10
 
-  if (mbox_open(h2o_handle) != MBOX_SUCCESS)
-  {
-    Printf("ERROR: failed to open h2o %d mailbox\n", h2o_handle);
-    Exit();
-  }
-  if (mbox_open(h2_handle) != MBOX_SUCCESS)
-  {
-    Printf("ERROR: failed to open h2 %d mailbox\n", h2_handle);
-    Exit();
-  }
-  if (mbox_open(o2_handle) != MBOX_SUCCESS)
-  {
-    Printf("ERROR: failed to open o2 %d mailbox\n", o2_handle);
-    Exit();
-  }
-
   // recv h2o molecules
   if(mbox_recv(h2o_handle, 24, msg) != MBOX_SUCCESS) {
     Printf("Bad h2o mailbox recv (%d) in ", h2o_handle); Printf(argv[0]); Printf(", exiting...\n");
@@ -64,22 +48,6 @@ void main (int argc, char* argv[])
     Exit();
   }
   Printf("Process %d sent 2 H2 and 1 O2\n", getpid());
-
-  if (mbox_close(h2o_handle) != MBOX_SUCCESS)
-  {
-    Printf("ERROR: failed to close h2o %d mailbox\n", h2o_handle);
-    Exit();
-  }
-  if (mbox_close(h2_handle) != MBOX_SUCCESS)
-  {
-    Printf("ERROR: failed to close h2 %d mailbox\n", h2_handle);
-    Exit();
-  }
-  if (mbox_close(o2_handle) != MBOX_SUCCESS)
-  {
-    Printf("ERROR: failed to close o2 %d mailbox\n", o2_handle);
-    Exit();
-  }
 
   // Signal the semaphore to tell the original process that we're done
   Printf("Reaction 1: PID %d is complete.\n", getpid());

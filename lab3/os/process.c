@@ -116,12 +116,11 @@ void ProcessFreeResources (PCB *pcb) {
 
   dbprintf ('p', "ProcessFreeResources: function started\n");
 
-
   //-----------------------------------------------------
   // Your code for closing any open mailbox connections
   // that a dying process might have goes here.
   //-----------------------------------------------------
-
+  MboxCloseAllByPid(GetPidFromAddress(pcb));
 
   // Allocate a new link for this pcb on the freepcbs queue
   if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {

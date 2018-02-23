@@ -116,10 +116,9 @@ mbox_t MboxCreate() {
 //
 //-------------------------------------------------------
 int MboxOpen(mbox_t handle) {
-  lock_t l;
   int intrval;
   intrval = DisableIntrs();
-  if ((l = LockHandleAcquire(mailbox[handle].lock)) != SYNC_SUCCESS)
+  if (LockHandleAcquire(mailbox[handle].lock) != SYNC_SUCCESS)
   {
     printf("FATAL ERROR: could not open mailbox\n");
     return MBOX_FAIL;
@@ -134,7 +133,15 @@ int MboxOpen(mbox_t handle) {
     }
 
   mailbox[handle].procs[GetCurrentPid()] = 1;
+
+  if (LockHandleRelease(mailbox[handle].lock) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not close mailbox\n");
+    return MBOX_FAIL;
+  }
+
   RestoreIntrs(intrval); 
+
   return MBOX_SUCCESS;
 }
 
@@ -156,6 +163,13 @@ int MboxClose(mbox_t handle) {
   int intrval;
 
   intrval = DisableIntrs();
+
+  if (LockHandleAcquire(mailbox[handle].lock) != SYNC_SUCCESS)
+  {
+    printf("FATAL ERROR: could not open mailbox\n");
+    return MBOX_FAIL;
+  }
+
   if (!mailbox[handle].inuse)
   {
     printf("ERROR: mailbox given is not inuse\n");
@@ -208,18 +222,17 @@ int MboxSend(mbox_t handle, int length, void* message) {
     return MBOX_FAIL;
   }
 
-  if (!mailbox[handle].inuse)
-  {
-    printf("ERROR: SEND Mailbox is not inuse\n");
-    return MBOX_FAIL;
-  }
-
   intrval = DisableIntrs();
-
   // acquire lock
   if (LockHandleAcquire(mailbox[handle].lock) != SYNC_SUCCESS)
   {
     printf("FATAL ERROR: could not get lock for mailbox in send\n");
+    return MBOX_FAIL;
+  }
+
+  if (!mailbox[handle].inuse)
+  {
+    printf("ERROR: SEND Mailbox is not inuse\n");
     return MBOX_FAIL;
   }
 
@@ -260,16 +273,16 @@ int MboxSend(mbox_t handle, int length, void* message) {
     exitsim();
   }
 
+  if (CondHandleSignal(mailbox[handle].notEmpty) != SYNC_SUCCESS)
+  {
+    printf("ERROR: SEND Mailbox is empty?\n");
+    return MBOX_FAIL;
+  }
+
   // release lock
   if (LockHandleRelease(mailbox[handle].lock) != SYNC_SUCCESS)
   {
     printf("FATAL ERROR: could not release lock for mailbox in send\n");
-    return MBOX_FAIL;
-  }
-
-  if (CondHandleSignal(mailbox[handle].notEmpty) != SYNC_SUCCESS)
-  {
-    printf("ERROR: SEND Mailbox is empty?\n");
     return MBOX_FAIL;
   }
 
@@ -299,32 +312,33 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
   mbox_message* m;
   Link* l;
 
-  if (!mailbox[handle].inuse)
-  {
-    printf("ERROR: RECV Mailbox not in use\n");
-    return MBOX_FAIL;  
-  }
-
-  if (maxlength/8 < mm[handle].length)
-  {
-    printf("ERROR: RECV maxlength is too large\n");
-    return MBOX_FAIL;
-  }
-
   intrval = DisableIntrs();
-  
-  if (CondHandleWait(mailbox[handle].notEmpty) != SYNC_SUCCESS)
-  {
-    printf("ERROR: RECV mailbox is empty?\n");
-    return MBOX_FAIL;
-  }
-
   // acquire lock
   if (LockHandleAcquire(mailbox[handle].lock) != SYNC_SUCCESS)
   {
     printf("FATAL ERROR: could not get lock for mailbox in send\n");
     return MBOX_FAIL;
   }
+
+  if (!mailbox[handle].inuse)
+  {
+    printf("ERROR: RECV Mailbox not in use\n");
+    return MBOX_FAIL;  
+  }
+
+  if (maxlength < mm[handle].length)
+  {
+    printf("ERROR: RECV maxlength is too large %d %d\n", maxlength, mm[handle].length);
+    return MBOX_FAIL;
+  }
+
+  //if queue->nitems == 0
+  if (!mailbox[handle].messageQ.nitems)   
+    if (CondHandleWait(mailbox[handle].notEmpty) != SYNC_SUCCESS)
+    {
+      printf("ERROR: RECV mailbox is empty?\n");
+      return MBOX_FAIL;
+    }
 
   // pop from queue
   if (!AQueueEmpty(&mailbox[handle].messageQ))
@@ -345,16 +359,16 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
     message += 8;
   }*/
 
+  if (CondHandleSignal(mailbox[handle].notFull) != SYNC_SUCCESS)
+  {
+    printf("ERROR: RECV mailbox is full?\n");
+    return MBOX_FAIL;
+  }
+
   // release lock
   if (LockHandleRelease(mailbox[handle].lock) != SYNC_SUCCESS)
   {
     printf("FATAL ERROR: could not release lock for mailbox in send\n");
-    return MBOX_FAIL;
-  }
-
-  if (CondHandleSignal(mailbox[handle].notFull) != SYNC_SUCCESS)
-  {
-    printf("ERROR: RECV mailbox is full?\n");
     return MBOX_FAIL;
   }
 
@@ -382,20 +396,28 @@ int MboxCloseAllByPid(int pid) {
   intrval = DisableIntrs();
   for (i = 0; i < MBOX_NUM_MBOXES; i++)
   {
-    for (j = 0; j < PROCESS_MAX_PROCS; j++) 
+    // acquire lock
+    if (LockHandleAcquire(mailbox[i].lock) != SYNC_SUCCESS)
     {
-      if (mailbox[i].procs[j] && j != pid)
-        break; 
+      printf("FATAL ERROR: could not get lock for mailbox in send\n");
+      return MBOX_FAIL;
     }
-    if (mailbox[i].procs[pid] && j == PROCESS_MAX_PROCS && mailbox[i].inuse)
-    {
-      mailbox[i].procs[pid] = 0;
-      mailbox[i].inuse = 0;
-      if (LockHandleRelease(mailbox[i].lock) != SYNC_SUCCESS)
+
+    mailbox[i].inuse = 0;
+    mailbox[i].procs[pid] = 0;
+
+    for (j = 0; j < PROCESS_MAX_PROCS; j++)
+      if (mailbox[i].procs[j])
       {
-        printf("FATAL ERROR: could not close mailbox\n");
-        return MBOX_FAIL;
+        mailbox[i].inuse = 1;
+        break;
       }
+    
+    // release lock
+    if (LockHandleRelease(mailbox[i].lock) != SYNC_SUCCESS)
+    {
+      printf("FATAL ERROR: could not release lock for mailbox in send\n");
+      return MBOX_FAIL;
     }
   }
 
