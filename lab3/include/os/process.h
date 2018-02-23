@@ -45,6 +45,8 @@ typedef struct PCB {
 
   int           pinfo;          // Turns on printing of runtime stats
   int           pnice;          // Used in priority calculation
+  int           runtime;
+  int           elapsed;
 } PCB;
 
 // Offsets of various registers from the stack pointer in the register
@@ -90,5 +92,8 @@ int GetPidFromAddress(PCB *pcb);
 
 void ProcessUserSleep(int seconds);
 void ProcessYield();
+
+// our edits
+void ProcessIdle();
 
 #endif	/* __process_h__ */

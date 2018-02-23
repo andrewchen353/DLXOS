@@ -21,6 +21,7 @@
 // Pointer to the current PCB.  This is used by the assembly language
 // routines for context switches.
 PCB		*currentPCB;
+PCB   *idlePCB;
 
 // List of free PCBs.
 static Queue	freepcbs;
@@ -85,11 +86,15 @@ void ProcessModuleInit () {
       exitsim();
     }
   }
+
+  // Call ProcessIdle
+  ProcessFork(ProcessIdle, 0, 0, 0, "ProcessIdle", 0);
+
   // There are no processes running at this point, so currentPCB=NULL
   currentPCB = NULL;
   dbprintf ('p', "ProcessModuleInit: function complete\n");
 }
-
+
 //----------------------------------------------------------------------
 //
 //	ProcessSetStatus
@@ -170,7 +175,6 @@ void ProcessSetResult (PCB * pcb, uint32 result) {
   pcb->currentSavedFrame[PROCESS_STACK_IREG+1] = result;
 }
 
-
 //----------------------------------------------------------------------
 //
 //	ProcessSchedule
@@ -199,6 +203,14 @@ void ProcessSchedule () {
 
   dbprintf ('p', "Now entering ProcessSchedule (cur=0x%x, %d ready)\n",
 	    (int)currentPCB, AQueueLength (&runQueue));
+
+  // Update runtime and elapsed time (our edits)
+  currentPCB->runtime += (ClkGetCurJiffies() - currentPCB->elapsed);
+  currentPCB->elapsed = ClkGetCurJiffies();
+  if (currentPCB->pinfo) {
+    printf("Runtime for Process (%s): %d jiffies\n", *currentPCB-pcbs, currentPCB->runtime);
+  }
+
   // The OS exits if there's no runnable process.  This is a feature, not a
   // bug.  An easy solution to allowing no runnable "user" processes is to
   // have an "idle" process that's simply an infinite loop.
@@ -349,6 +361,15 @@ static void ProcessExit () {
   exit ();
 }
 
+//----------------------------------------------------------------------
+//  ProcessIdle()
+//  
+//  Does literally nothing
+//----------------------------------------------------------------------
+void ProcessIdle () {
+  while(1);
+}
+
 
 //----------------------------------------------------------------------
 //
@@ -405,6 +426,27 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
   // Copy the process name into the PCB.
   dbprintf('p', "ProcessFork: Copying process name (%s) to pcb\n", name);
   dstrcpy(pcb->name, name);
+
+  // ---------------------------------------------------------------------
+  // Set pnice, pinfo and start time (our edits)
+  // ---------------------------------------------------------------------
+  pcb->runtime = 0;
+  pcb->elapsed = ClkGetCurJiffies();
+
+  if (pinfo != 0 || pinfo != 1)
+  {
+    printf("FATAL ERROR: pinfo needs to be either 1 or 0!\n");
+    exitsim();
+  }
+
+  pcb->pinfo = pinfo; // needs to be zero or one
+
+  if (pnice <= 0)
+    pcb->pnice = 1;
+  else if (pnice > 19)
+    pcb->pnice = 19;
+  else
+    pcb->pnice = pnice;
 
   //----------------------------------------------------------------------
   // This section initializes the memory for this process
@@ -549,13 +591,15 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
 
   // Place PCB onto run queue
   intrs = DisableIntrs ();
-  if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
-    printf("FATAL ERROR: could not get link for forked PCB in ProcessFork!\n");
-    exitsim();
-  }
-  if (AQueueInsertLast(&runQueue, pcb->l) != QUEUE_SUCCESS) {
-    printf("FATAL ERROR: could not insert link into runQueue in ProcessFork!\n");
-    exitsim();
+  if (func != ProcessIdle) {
+    if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
+      printf("FATAL ERROR: could not get link for forked PCB in ProcessFork!\n");
+      exitsim();
+    }
+    if (AQueueInsertLast(&runQueue, pcb->l) != QUEUE_SUCCESS) {
+      printf("FATAL ERROR: could not insert link into runQueue in ProcessFork!\n");
+      exitsim();
+    }
   }
   RestoreIntrs (intrs);
 
