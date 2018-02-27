@@ -23,6 +23,10 @@
 PCB		*currentPCB;
 PCB   *idlePCB;
 
+// Counter for tickets
+int totalTickets;
+extern int random(), srandom();
+
 // List of free PCBs.
 static Queue	freepcbs;
 
@@ -88,7 +92,7 @@ void ProcessModuleInit () {
   }
 
   // Call ProcessIdle
-  ProcessFork(ProcessIdle, 0, 0, 0, "ProcessIdle", 0);
+  //ProcessFork(ProcessIdle, 0, 0, 0, "ProcessIdle", 0);
 
   // There are no processes running at this point, so currentPCB=NULL
   currentPCB = NULL;
@@ -201,15 +205,19 @@ void ProcessSchedule () {
   int i=0;
   Link *l=NULL;
 
+  // Lottery stuff
+  int ticket;
+  int upperbound=0;
+
   dbprintf ('p', "Now entering ProcessSchedule (cur=0x%x, %d ready)\n",
 	    (int)currentPCB, AQueueLength (&runQueue));
 
   // Update runtime and elapsed time (our edits)
   currentPCB->runtime += (ClkGetCurJiffies() - currentPCB->elapsed);
   currentPCB->elapsed = ClkGetCurJiffies();
-  if (currentPCB->pinfo) {
-    printf("Runtime for Process (%s): %d jiffies\n", *currentPCB-pcbs, currentPCB->runtime);
-  }
+  /*if (currentPCB->pinfo) {
+    printf("Runtime for Process (%s): %d jiffies\n", GetCurrentPid(), currentPCB->runtime);
+  }*/
 
   // The OS exits if there's no runnable process.  This is a feature, not a
   // bug.  An easy solution to allowing no runnable "user" processes is to
@@ -229,6 +237,12 @@ void ProcessSchedule () {
     exitsim ();	// NEVER RETURNS
   }
 
+
+  //----------------------------------------------------------------------------------
+  // Round Robin Based Scheduling
+  // ---------------------------------------------------------------------------------
+  /* 
+  #ifdef RR_SCHED
   // Move the front of the queue to the end.  The running process was the one in front.
   AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), AQueueFirst(&runQueue));
 
@@ -237,7 +251,26 @@ void ProcessSchedule () {
   currentPCB = pcb;
   dbprintf ('p',"About to switch to PCB 0x%x,flags=0x%x @ 0x%x\n",
 	    (int)pcb, pcb->flags, (int)(pcb->sysStackPtr[PROCESS_STACK_IAR]));
+  #endif
+  */
 
+  // ---------------------------------------------------------------------------------
+  // Lottery Based Scheduling
+  // ---------------------------------------------------------------------------------
+  ticket = random() % totalTickets;
+  l = AQueueFirst(&waitQueue);
+  while (l != NULL) 
+  {
+    upperbound += ((PCB *)AQueueObject(l))->pnice;
+    if (ticket < upperbound)
+    {
+      currentPCB = (PCB *)AQueueObject(l);
+      l = NULL;
+      break;
+    }
+    l = AQueueNext(l);
+  }  
+  
   // Clean up zombie processes here.  This is done at interrupt time
   // because it can't be done while the process might still be running
   while (!AQueueEmpty(&zombieQueue)) {
@@ -433,7 +466,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
   pcb->runtime = 0;
   pcb->elapsed = ClkGetCurJiffies();
 
-  if (pinfo != 0 || pinfo != 1)
+  if (pinfo != 0 && pinfo != 1)
   {
     printf("FATAL ERROR: pinfo needs to be either 1 or 0!\n");
     exitsim();
@@ -447,6 +480,8 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
     pcb->pnice = 19;
   else
     pcb->pnice = pnice;
+
+  totalTickets += pnice;
 
   //----------------------------------------------------------------------
   // This section initializes the memory for this process
@@ -591,7 +626,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
 
   // Place PCB onto run queue
   intrs = DisableIntrs ();
-  if (func != ProcessIdle) {
+  //if (func != ProcessIdle) {
     if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
       printf("FATAL ERROR: could not get link for forked PCB in ProcessFork!\n");
       exitsim();
@@ -600,7 +635,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
       printf("FATAL ERROR: could not insert link into runQueue in ProcessFork!\n");
       exitsim();
     }
-  }
+  //}
   RestoreIntrs (intrs);
 
   // If this is the first process, make it the current one
@@ -815,6 +850,9 @@ void main (int argc, char *argv[])
   int base=0;
   int numargs=0;
   char *params[10]; // Maximum number of command-line parameters is 10
+
+  totalTickets = 0; // counter for tickets, global
+  srandom(2000);
   
   debugstr[0] = '\0';
 
