@@ -248,7 +248,17 @@ void ProcessSchedule () {
 
   if (currentPCB->yield) {
     // find currentPCB and move to end
-    AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), AQueueFirst(&runQueue));
+    l = AQueueFirst(&runQueue);
+    while (l)
+    {
+      if (findpid(AQueueObject(l)) == findpid(currentPCB))
+      {
+        AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), l);
+        break;
+      }
+      l = AQueueNext(l);
+    }
+    currentPCB->yield = 0;
   }
 
   // go through wait queue and find sleeping processes to wake up
@@ -1082,16 +1092,4 @@ void ProcessUserSleep(int seconds) {
 void ProcessYield() {
   // Your code here
   currentPCB->yield = 1;
-  /*Link* l;
-  PCB* p;
-
-  while (l)
-  {
-    p = AQueueObject(l);
-    if (findpid(p) == findpid(currentPCB))
-    {
-      AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), AQueueFirst(&runQueue));
-    }
-  }*/
-  ProcessSchedule();
 }
