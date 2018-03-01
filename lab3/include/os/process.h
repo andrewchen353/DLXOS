@@ -30,8 +30,8 @@
 #define	PROCESS_TYPE_SYSTEM	0x100
 #define	PROCESS_TYPE_USER	0x200
 
-#define LT_SCHED
-//#define RR_SCHED
+//#define LT_SCHED
+#define RR_SCHED
 
 typedef	void (*VoidFunc)();
 

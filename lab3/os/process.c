@@ -299,7 +299,7 @@ void ProcessSchedule () {
   currentPCB->elapsed = ClkGetCurJiffies();
 
   if (currentPCB->pinfo) {
-    printf("Runtime for Process (%s): %d jiffies\n", GetCurrentPid(), currentPCB->runtime);
+    printf(PROCESS_CPUSTATS_FORMAT, GetCurrentPid(), currentPCB->runtime, currentPCB->pnice);
   }
 
   l = AQueueFirst(&runQueue);

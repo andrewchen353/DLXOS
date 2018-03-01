@@ -23,10 +23,11 @@ void main (int argc, char* argv[])
   o2_handle = dstrtol(argv[4], NULL, 10); // The "10" means base 10
 
   // recv so4 molecules
-  if(mbox_recv(so4_handle, 24, msg) != MBOX_SUCCESS) {
+  if(mbox_recv(so4_handle, 3, msg) != MBOX_SUCCESS) {
     Printf("Bad so4 mailbox recv (%d) in ", so4_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
+  //Printf("--R2 Message Received: %s\n", msg);
   Printf("Process %d received an SO4 molecule\n", getpid());
 
   // send so4 molecules

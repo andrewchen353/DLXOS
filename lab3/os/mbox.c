@@ -253,12 +253,7 @@ int MboxSend(mbox_t handle, int length, void* message) {
     return MBOX_FAIL;
   }
 
-  c = mm[i].buffer;
-  c = (char*) message;
-  //*(mm[i].buffer) = (char *)message; //??????
-  //mm[i].buffer = (char *)&message;
-  /*for (j = 0; j < length; j++)
-    mm[i].buffer[j] = (char)message[j];*/
+  dstrcpy(mm[i].buffer, (char *)message);
 
   mm[i].length = length;
   mm[i].inuse = 1;
@@ -351,7 +346,9 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
       exitsim();
     }
   }
-  message = &(m->buffer);
+
+  dstrcpy((char *)message, m->buffer);
+  // printf("--It is written: %s\n", (char *)message);
   m->inuse = 0;
 
   if (CondHandleSignal(mailbox[handle].notFull) != SYNC_SUCCESS)

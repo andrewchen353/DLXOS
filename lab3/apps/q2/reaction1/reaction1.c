@@ -32,6 +32,7 @@ void main (int argc, char* argv[])
     Printf("Bad h2o mailbox recv (%d) in ", h2o_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
+  // Printf("--R1 Message Received: %s\n", msg);
   Printf("Process %d received an H2O molecule 2\n", getpid());
 
   // send h2o molecules
