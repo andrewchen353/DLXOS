@@ -200,11 +200,13 @@ void ProcessSetResult (PCB * pcb, uint32 result) {
 void ProcessSchedule () {
   PCB *pcb=NULL;
   Link *l=NULL;
+  int i=0;
 
   // Lottery stuff
   int ticket;
   int upperbound=0;
   int totalTickets=0;
+  int wakeflag=1;
 
   dbprintf ('p', "Now entering ProcessSchedule (cur=0x%x, %d ready)\n",
 	    (int)currentPCB, AQueueLength (&runQueue));
@@ -261,23 +263,35 @@ void ProcessSchedule () {
     currentPCB->yield = 0;
   }
 
-  // go through wait queue and find sleeping processes to wake up
-  l = AQueueFirst(&waitQueue);
-  while (l) {
-    pcb = AQueueObject(l);
-    if (pcb->waketime <= ClkGetCurJiffies())
-      ProcessWakeup(pcb);
-    l = AQueueNext(l);
-  }
-
   // The OS exits if there's no runnable process.  This is a feature, not a
   // bug.  An easy solution to allowing no runnable "user" processes is to
   // have an "idle" process that's simply an infinite loop.
   if (AQueueEmpty(&runQueue)) {
-    if (!AQueueEmpty(&waitQueue))
-      currentPCB = idlePCB;
-    else
-      exitsim();
+    if (!AQueueEmpty(&waitQueue)) {
+      l = AQueueFirst(&waitQueue);
+      while (l) {
+        pcb = AQueueObject(l);
+        if (pcb->waketime <= ClkGetCurJiffies()) {
+          wakeflag=0;
+          ProcessWakeup(pcb);
+        }
+        l = AQueueNext(l);
+      }
+      if (!wakeflag) {
+        printf("FATAL ERROR: no runnable processes, but there are sleeping processes waiting!\n");
+        l = AQueueFirst(&waitQueue);
+        while (l != NULL) {
+          pcb = AQueueObject(l);
+          printf("Sleeping process %d: ", i++); printf("PID = %d\n", (int)(pcb - pcbs));
+          l = AQueueNext(l);
+        }
+        exitsim();
+      }
+    }
+    else {
+      printf ("No runnable processes - exiting!\n");
+      exitsim (); // NEVER RETURNS
+    }
   }
 
   // Update runtime and elapsed time (our edits)
