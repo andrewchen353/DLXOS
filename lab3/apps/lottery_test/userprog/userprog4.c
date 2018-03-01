@@ -40,7 +40,7 @@ main (int argc, char *argv[])
       for(i = 0; i < number; i++)
       {
         ditoa(i, num_str);
-        process_create(1 + i, 0, "userprog4.dlx.obj", num_str, 
+        process_create("userprog4.dlx.obj", 1 + i, 0, num_str, 
                        spage_str, handle_str,
                        NULL);     // different p_nice for child process
       }
@@ -60,6 +60,7 @@ main (int argc, char *argv[])
           exit();
         }
 
+      Printf("db->end %d\n", db->end);
       for(i = 0; !db->end; i ++)
       {
         for(j = 0; j < 50000; j++);     //waste some time

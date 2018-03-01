@@ -30,6 +30,8 @@
 #define	PROCESS_TYPE_SYSTEM	0x100
 #define	PROCESS_TYPE_USER	0x200
 
+#define LT_SCHED //#define RR_SCHED
+
 typedef	void (*VoidFunc)();
 
 // Process control block
@@ -47,6 +49,8 @@ typedef struct PCB {
   int           pnice;          // Used in priority calculation
   int           runtime;
   int           elapsed;
+  int           waketime;
+  int           yield;
 } PCB;
 
 // Offsets of various registers from the stack pointer in the register

@@ -23,8 +23,6 @@
 PCB		*currentPCB;
 PCB   *idlePCB;
 
-// Counter for tickets
-int totalTickets;
 extern int random(), srandom();
 
 // List of free PCBs.
@@ -56,7 +54,6 @@ int ProcessGetFromFile(int fd, unsigned char *buf, uint32 *addr, int max);
 uint32 get_argument(char *string);
 
 
-
 //----------------------------------------------------------------------
 //
 //	ProcessModuleInit
@@ -92,7 +89,7 @@ void ProcessModuleInit () {
   }
 
   // Call ProcessIdle
-  //ProcessFork(ProcessIdle, 0, 0, 0, "ProcessIdle", 0);
+  ProcessFork(ProcessIdle, 0, 0, 0, "ProcessIdle", 0);
 
   // There are no processes running at this point, so currentPCB=NULL
   currentPCB = NULL;
@@ -202,23 +199,20 @@ void ProcessSetResult (PCB * pcb, uint32 result) {
 //----------------------------------------------------------------------
 void ProcessSchedule () {
   PCB *pcb=NULL;
-  int i=0;
   Link *l=NULL;
 
   // Lottery stuff
   int ticket;
   int upperbound=0;
+  int totalTickets=0;
 
   dbprintf ('p', "Now entering ProcessSchedule (cur=0x%x, %d ready)\n",
 	    (int)currentPCB, AQueueLength (&runQueue));
 
-  // Update runtime and elapsed time (our edits)
-  currentPCB->runtime += (ClkGetCurJiffies() - currentPCB->elapsed);
-  currentPCB->elapsed = ClkGetCurJiffies();
-  /*if (currentPCB->pinfo) {
-    printf("Runtime for Process (%s): %d jiffies\n", GetCurrentPid(), currentPCB->runtime);
-  }*/
-
+  //----------------------------------------------------------------------------------
+  // Round Robin Based Scheduling
+  // ---------------------------------------------------------------------------------
+  #ifdef RR_SCHED
   // The OS exits if there's no runnable process.  This is a feature, not a
   // bug.  An easy solution to allowing no runnable "user" processes is to
   // have an "idle" process that's simply an infinite loop.
@@ -237,12 +231,6 @@ void ProcessSchedule () {
     exitsim ();	// NEVER RETURNS
   }
 
-
-  //----------------------------------------------------------------------------------
-  // Round Robin Based Scheduling
-  // ---------------------------------------------------------------------------------
-  /* 
-  #ifdef RR_SCHED
   // Move the front of the queue to the end.  The running process was the one in front.
   AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), AQueueFirst(&runQueue));
 
@@ -252,15 +240,53 @@ void ProcessSchedule () {
   dbprintf ('p',"About to switch to PCB 0x%x,flags=0x%x @ 0x%x\n",
 	    (int)pcb, pcb->flags, (int)(pcb->sysStackPtr[PROCESS_STACK_IAR]));
   #endif
-  */
 
   // ---------------------------------------------------------------------------------
   // Lottery Based Scheduling
   // ---------------------------------------------------------------------------------
-  ticket = random() % totalTickets;
+  #ifdef LT_SCHED
+
+  if (currentPCB->yield) {
+    // find currentPCB and move to end
+    AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), AQueueFirst(&runQueue));
+  }
+
+  // go through wait queue and find sleeping processes to wake up
   l = AQueueFirst(&waitQueue);
-  while (l != NULL) 
-  {
+  while (l) {
+    pcb = AQueueObject(l);
+    if (pcb->waketime <= ClkGetCurJiffies())
+      ProcessWakeup(pcb);
+    l = AQueueNext(l);
+  }
+
+  // The OS exits if there's no runnable process.  This is a feature, not a
+  // bug.  An easy solution to allowing no runnable "user" processes is to
+  // have an "idle" process that's simply an infinite loop.
+  if (AQueueEmpty(&runQueue)) {
+    if (!AQueueEmpty(&waitQueue))
+      currentPCB = idlePCB;
+    else
+      exitsim();
+  }
+
+  // Update runtime and elapsed time (our edits)
+  currentPCB->runtime += (ClkGetCurJiffies() - currentPCB->elapsed);
+  currentPCB->elapsed = ClkGetCurJiffies();
+
+  if (currentPCB->pinfo) {
+    printf("Runtime for Process (%s): %d jiffies\n", GetCurrentPid(), currentPCB->runtime);
+  }
+
+  l = AQueueFirst(&runQueue);
+  while (l) {
+    totalTickets += ((PCB *)AQueueObject(l))->pnice;
+    l = AQueueNext(l);
+  }
+
+  ticket = random() % totalTickets;
+  l = AQueueFirst(&runQueue);
+  while (l) {
     upperbound += ((PCB *)AQueueObject(l))->pnice;
     if (ticket < upperbound)
     {
@@ -269,7 +295,8 @@ void ProcessSchedule () {
       break;
     }
     l = AQueueNext(l);
-  }  
+  }
+  #endif
   
   // Clean up zombie processes here.  This is done at interrupt time
   // because it can't be done while the process might still be running
@@ -284,7 +311,7 @@ void ProcessSchedule () {
   }
   dbprintf ('p', "Leaving ProcessSchedule (cur=0x%x)\n", (int)currentPCB);
 }
-
+
 //----------------------------------------------------------------------
 //
 //	ProcessSuspend
@@ -349,7 +376,6 @@ void ProcessWakeup (PCB *wakeup) {
   }
 }
 
-
 //----------------------------------------------------------------------
 //
 //	ProcessDestroy
@@ -379,6 +405,7 @@ void ProcessDestroy (PCB *pcb) {
     printf("FATAL ERROR: could not insert link into runQueue in ProcessWakeup!\n");
     exitsim();
   }
+
   dbprintf ('p', "ProcessDestroy (%d): function complete\n", GetCurrentPid());
 }
 
@@ -400,6 +427,7 @@ static void ProcessExit () {
 //  Does literally nothing
 //----------------------------------------------------------------------
 void ProcessIdle () {
+  idlePCB = currentPCB;
   while(1);
 }
 
@@ -418,7 +446,7 @@ void ProcessIdle () {
 //	for user processes.
 //
 //----------------------------------------------------------------------
-int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, int isUser) {
+int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo, char *name, int isUser) {
   int		fd, n;
   int		start, codeS, codeL, dataS, dataL;
   uint32	*stackframe;
@@ -468,7 +496,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
 
   if (pinfo != 0 && pinfo != 1)
   {
-    printf("FATAL ERROR: pinfo needs to be either 1 or 0!\n");
+    printf("FATAL ERROR: pinfo (%d) needs to be either 1 or 0!\n", pinfo);
     exitsim();
   }
 
@@ -480,8 +508,6 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
     pcb->pnice = 19;
   else
     pcb->pnice = pnice;
-
-  totalTickets += pnice;
 
   //----------------------------------------------------------------------
   // This section initializes the memory for this process
@@ -626,7 +652,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
 
   // Place PCB onto run queue
   intrs = DisableIntrs ();
-  //if (func != ProcessIdle) {
+  if (func != ProcessIdle) {
     if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
       printf("FATAL ERROR: could not get link for forked PCB in ProcessFork!\n");
       exitsim();
@@ -635,7 +661,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
       printf("FATAL ERROR: could not insert link into runQueue in ProcessFork!\n");
       exitsim();
     }
-  //}
+  }
   RestoreIntrs (intrs);
 
   // If this is the first process, make it the current one
@@ -651,7 +677,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo,char *name, i
 
   return (pcb - pcbs);
 }
-
+
 //----------------------------------------------------------------------
 //
 //	getxvalue
@@ -851,7 +877,6 @@ void main (int argc, char *argv[])
   int numargs=0;
   char *params[10]; // Maximum number of command-line parameters is 10
 
-  totalTickets = 0; // counter for tickets, global
   srandom(2000);
   
   debugstr[0] = '\0';
@@ -1045,6 +1070,8 @@ int GetPidFromAddress(PCB *pcb) {
 //--------------------------------------------------------
 void ProcessUserSleep(int seconds) {
   // Your code here
+  currentPCB->waketime = ClkGetCurJiffies() + (seconds * 1000000 / ClkGetResolution());
+  ProcessSuspend(currentPCB);
 }
 
 //-----------------------------------------------------
@@ -1054,4 +1081,17 @@ void ProcessUserSleep(int seconds) {
 //-----------------------------------------------------
 void ProcessYield() {
   // Your code here
+  currentPCB->yield = 1;
+  /*Link* l;
+  PCB* p;
+
+  while (l)
+  {
+    p = AQueueObject(l);
+    if (findpid(p) == findpid(currentPCB))
+    {
+      AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), AQueueFirst(&runQueue));
+    }
+  }*/
+  ProcessSchedule();
 }
