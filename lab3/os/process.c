@@ -273,19 +273,24 @@ void ProcessSchedule () {
         pcb = AQueueObject(l);
         if (pcb->waketime <= ClkGetCurJiffies()) {
           wakeflag=0;
+          pcb->waketime=0;
           ProcessWakeup(pcb);
         }
         l = AQueueNext(l);
       }
       if (!wakeflag) {
-        printf("FATAL ERROR: no runnable processes, but there are sleeping processes waiting!\n");
+        currentPCB = idlePCB;
+        /*printf("FATAL ERROR: no runnable processes, but there are sleeping processes waiting!\n");
         l = AQueueFirst(&waitQueue);
         while (l != NULL) {
           pcb = AQueueObject(l);
           printf("Sleeping process %d: ", i++); printf("PID = %d\n", (int)(pcb - pcbs));
           l = AQueueNext(l);
         }
-        exitsim();
+        exitsim();*/
+      }
+      else {
+        currentPCB = idlePCB;
       }
     }
     else {
