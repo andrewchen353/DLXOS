@@ -247,13 +247,12 @@ void ProcessSchedule () {
   // Lottery Based Scheduling
   // ---------------------------------------------------------------------------------
   #ifdef LT_SCHED
-
   if (currentPCB->yield) {
     // find currentPCB and move to end
     l = AQueueFirst(&runQueue);
     while (l)
     {
-      if (findpid(AQueueObject(l)) == findpid(currentPCB))
+      if (GetPidFromAddress(AQueueObject(l)) == GetPidFromAddress(currentPCB))
       {
         AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), l);
         break;
@@ -273,25 +272,12 @@ void ProcessSchedule () {
         pcb = AQueueObject(l);
         if (pcb->waketime <= ClkGetCurJiffies()) {
           wakeflag=0;
-          pcb->waketime=0;
           ProcessWakeup(pcb);
         }
         l = AQueueNext(l);
       }
-      if (!wakeflag) {
+      if (wakeflag)
         currentPCB = idlePCB;
-        /*printf("FATAL ERROR: no runnable processes, but there are sleeping processes waiting!\n");
-        l = AQueueFirst(&waitQueue);
-        while (l != NULL) {
-          pcb = AQueueObject(l);
-          printf("Sleeping process %d: ", i++); printf("PID = %d\n", (int)(pcb - pcbs));
-          l = AQueueNext(l);
-        }
-        exitsim();*/
-      }
-      else {
-        currentPCB = idlePCB;
-      }
     }
     else {
       printf ("No runnable processes - exiting!\n");
@@ -300,12 +286,20 @@ void ProcessSchedule () {
   }
 
   // Update runtime and elapsed time (our edits)
-  currentPCB->runtime += (ClkGetCurJiffies() - currentPCB->elapsed);
-  currentPCB->elapsed = ClkGetCurJiffies();
+  currentPCB->elapsed = ClkGetCurJiffies() - currentPCB->starttime;
+  currentPCB->runtime += currentPCB->elapsed;
 
-  if (currentPCB->pinfo) {
+  #ifdef DYNAMIC
+  if (currentPCB->runtime >= PROCESS_QUANTUM_JIFFIES)
+    if (currentPCB->pnice > 1)
+      (currentPCB->pnice)--;
+  else
+    if (currentPCB->pnice < 19)
+      (currentPCB->pnice)++;
+  #endif
+
+  if (currentPCB->pinfo)
     printf(PROCESS_CPUSTATS_FORMAT, GetCurrentPid(), currentPCB->runtime, currentPCB->pnice);
-  }
 
   l = AQueueFirst(&runQueue);
   while (l) {
@@ -521,7 +515,7 @@ int ProcessFork (VoidFunc func, uint32 param, int pnice, int pinfo, char *name, 
   // Set pnice, pinfo and start time (our edits)
   // ---------------------------------------------------------------------
   pcb->runtime = 0;
-  pcb->elapsed = ClkGetCurJiffies();
+  pcb->starttime = ClkGetCurJiffies();
 
   if (pinfo != 0 && pinfo != 1)
   {

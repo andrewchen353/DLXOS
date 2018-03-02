@@ -31,6 +31,7 @@
 #define	PROCESS_TYPE_USER	0x200
 
 #define LT_SCHED
+//#define DYNAMIC
 //#define RR_SCHED
 
 typedef	void (*VoidFunc)();
@@ -50,6 +51,7 @@ typedef struct PCB {
   int           pnice;          // Used in priority calculation
   int           runtime;
   int           elapsed;
+  int           starttime;
   int           waketime;
   int           yield;
 } PCB;
@@ -90,7 +92,7 @@ extern void	ProcessSuspend (PCB *);
 extern void	ProcessWakeup (PCB *);
 extern void	ProcessSetResult (PCB *, uint32);
 extern void	ProcessSleep ();
-extern void     ProcessDestroy(PCB *pcb);
+extern void ProcessDestroy(PCB *pcb);
 extern unsigned GetCurrentPid();
 void process_create(char *name, ...);
 int GetPidFromAddress(PCB *pcb);

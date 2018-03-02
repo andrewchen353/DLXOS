@@ -22,24 +22,53 @@ void main (int argc, char* argv[])
   so2_handle = dstrtol(argv[3], NULL, 10); // The "10" means base 10
   o2_handle = dstrtol(argv[4], NULL, 10); // The "10" means base 10
 
+  if (mbox_open(so4_handle) != MBOX_SUCCESS) {
+    Printf("Could not open so4 mailbox in "); Printf(argv[0]); Printf("\n");
+    Exit();
+  }
+  if (mbox_open(so2_handle) != MBOX_SUCCESS) {
+    Printf("Could not open so2 mailbox in "); Printf(argv[0]); Printf("\n");
+    Exit();
+  }
+  if (mbox_open(o2_handle) != MBOX_SUCCESS) {
+    Printf("Could not open o2 mailbox in "); Printf(argv[0]); Printf("\n");
+    Exit();
+  }
+
   // recv so4 molecules
-  if(mbox_recv(so4_handle, 3, msg) != MBOX_SUCCESS) {
+  if(mbox_recv(so4_handle, 4, msg) != MBOX_SUCCESS) {
     Printf("Bad so4 mailbox recv (%d) in ", so4_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("--R2 Message Received: %s\n", msg);
+  //Printf("**************so4: %d\n", so4_handle);
+  //Printf("----------R2 Message Received: %s\n", msg);
   Printf("Process %d received an SO4 molecule\n", getpid());
 
-  // send so4 molecules
-  if(mbox_send(so2_handle, 3, (void*)"so2") != MBOX_SUCCESS) {
+  // send so2 molecules
+  if(mbox_send(so2_handle, 4, (void*)"so2") != MBOX_SUCCESS) {
     Printf("Bad so2 mailbox send (%d) in ", so2_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  if(mbox_send(o2_handle, 2, (void*)"o2") != MBOX_SUCCESS) {
+  //Printf("**************so2: %d\n", so2_handle);
+  if(mbox_send(o2_handle, 3, (void*)"o2") != MBOX_SUCCESS) {
     Printf("Bad o2 mailbox send (%d) in ", o2_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
+  //Printf("**************o2: %d\n", o2_handle);
   Printf("Process %d sent 1 SO2 and 1 O2\n", getpid());
+
+  if (mbox_close(so4_handle) != MBOX_SUCCESS) {
+    Printf("Could not close so4 mailbox in "); Printf(argv[0]); Printf("\n");
+    Exit();
+  }
+  if (mbox_close(so2_handle) != MBOX_SUCCESS) {
+    Printf("Could not close so2 mailbox in "); Printf(argv[0]); Printf("\n");
+    Exit();
+  }
+  if (mbox_close(o2_handle) != MBOX_SUCCESS) {
+    Printf("Could not close o2 mailbox in "); Printf(argv[0]); Printf("\n");
+    Exit();
+  }
 
   // Signal the semaphore to tell the original process that we're done
   Printf("Reaction 2: PID %d is complete.\n", getpid());
