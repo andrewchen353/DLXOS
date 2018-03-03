@@ -1,0 +1,9 @@
+We are done with Lab3 :D
+
+--------------Mailbox-------------
+It works with both lottery and round robin scheduling.
+
+--------------Lottery-------------
+In process.h, we defined macros for lottery, dynamic, and round robin scheduling.
+Dynamic and round robin macros are commented out. 
+Dynamic is defined on line 292 and round robin is on line 217 of process.c.
