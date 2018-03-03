@@ -46,22 +46,16 @@ void main (int argc, char* argv[])
     Printf("Bad h2 mailbox recv (%d) in ", h2_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("**************h2: %d\n", h2_handle);
-  //Printf("----------R3 h2 Message Received: %s\n", msg);
   Printf("Process %d received an H2 molecule\n", getpid());
   if(mbox_recv(o2_handle, 3, msg) != MBOX_SUCCESS) {
     Printf("Bad o2 mailbox recv (%d) in ", o2_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("**************o2: %d\n", o2_handle);
-  //Printf("----------R3 o2 Message Received: %s\n", msg);
   Printf("Process %d received an O2 molecule\n", getpid());
   if(mbox_recv(so2_handle, 4, msg) != MBOX_SUCCESS) {
     Printf("Bad so2 mailbox recv (%d) in ", so2_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("**************so2: %d\n", so2_handle);
-  //Printf("----------R3 so2 Message Received: %s\n", msg);
   Printf("Process %d received an SO2 molecule\n", getpid());
 
   // send h2o molecules
@@ -69,7 +63,6 @@ void main (int argc, char* argv[])
     Printf("Bad h2so4 mailbox send (%d) in ", h2so4_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("**************h2so4: %d\n", h2so4_handle);
   Printf("Process %d sent 1 H2SO4\n", getpid());
 
   if (mbox_close(h2_handle) != MBOX_SUCCESS) {

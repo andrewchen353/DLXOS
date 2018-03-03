@@ -40,8 +40,6 @@ void main (int argc, char* argv[])
     Printf("Bad so4 mailbox recv (%d) in ", so4_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("**************so4: %d\n", so4_handle);
-  //Printf("----------R2 Message Received: %s\n", msg);
   Printf("Process %d received an SO4 molecule\n", getpid());
 
   // send so2 molecules
@@ -49,12 +47,10 @@ void main (int argc, char* argv[])
     Printf("Bad so2 mailbox send (%d) in ", so2_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("**************so2: %d\n", so2_handle);
   if(mbox_send(o2_handle, 3, (void*)"o2") != MBOX_SUCCESS) {
     Printf("Bad o2 mailbox send (%d) in ", o2_handle); Printf(argv[0]); Printf(", exiting...\n");
     Exit();
   }
-  //Printf("**************o2: %d\n", o2_handle);
   Printf("Process %d sent 1 SO2 and 1 O2\n", getpid());
 
   if (mbox_close(so4_handle) != MBOX_SUCCESS) {

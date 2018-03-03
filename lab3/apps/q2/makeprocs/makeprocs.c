@@ -86,13 +86,6 @@ void main (int argc, char *argv[])
     Exit();
   }
 
-  /*Printf("h2o: %d\n", (int)h2o_handle);
-  Printf("so4: %d\n", so4_handle);
-  Printf("h2: %d\n", h2_handle);
-  Printf("so2:%d\n", so2_handle);
-  Printf("o2: %d\n", o2_handle);
-  Printf("h2so4: %d\n", h2so4_handle);*/
-
   // Setup the command-line arguments for the new process.  We're going to
   // pass the handles to the shared memory page and the semaphore as strings
   // on the command line, so we must first convert them from ints to strings.

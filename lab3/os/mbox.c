@@ -8,8 +8,6 @@
 static mbox_message mm[MBOX_NUM_BUFFERS];
 static mbox mailbox[MBOX_NUM_MBOXES];
 
-//////LOCK ACQUIRE AND RELEASE EVERY TIME ACCESS MAILBOX!!!!!!!!!!!!!!!
-
 //-------------------------------------------------------
 //
 // void MboxModuleInit();
@@ -254,8 +252,6 @@ int MboxSend(mbox_t handle, int length, void* message) {
   }
 
   dstrcpy(mm[i].buffer, (char *)message);
-  //bcopy(message, (void *) mm[i].buffer, mm[i].length);
-  //printf("---------Writing into mailbox message %d: %s<--%s\n", i, (char *) mm[i].buffer, message);
 
   mm[i].length = length;
   mm[i].inuse = 1;
@@ -264,13 +260,12 @@ int MboxSend(mbox_t handle, int length, void* message) {
     printf("FATAL ERROR: SEND could not allocate link for queue in MboxSend\n");
     exitsim();
   }
-  if (AQueueInsertLast(&mailbox[i].messageQ, l) != QUEUE_SUCCESS)
+  if (AQueueInsertLast(&mailbox[handle].messageQ, l) != QUEUE_SUCCESS)
   {
     printf("FATAL ERROR: SEND could not insert new link into queue in MBoxSend\n");
     exitsim();
   }
-  //l = AQueueLast(&mailbox[i].messageQ);
-  //printf("mailbox messageQ: %s\n", ((mbox_message*)AQueueObject(l))->buffer);
+
   if (CondHandleSignal(mailbox[handle].notEmpty) != SYNC_SUCCESS)
   {
     printf("ERROR: SEND Mailbox is empty?\n");
@@ -324,13 +319,6 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
     return MBOX_FAIL;  
   }
 
-  if (maxlength < mm[handle].length)
-  {
-    printf("ERROR: RECV maxlength (%d) is too short (%d)\n", maxlength, mm[handle].length);
-    return MBOX_FAIL;
-  }
-
-  //if queue->nitems == 0
   if (!mailbox[handle].messageQ.nitems)   
     if (CondHandleWait(mailbox[handle].notEmpty) != SYNC_SUCCESS)
     {
@@ -338,18 +326,18 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
       return MBOX_FAIL;
     }
 
-  /*l = AQueueFirst(&mailbox[handle].messageQ);
-  while (l) {
-    m = (mbox_message *)AQueueObject(l);
-    printf("message: %s\n", m->buffer);
-    l = AQueueNext(l);
-  }*/
-
   // pop from queue
   if (!AQueueEmpty(&mailbox[handle].messageQ))
   {
     l = AQueueFirst(&mailbox[handle].messageQ);
     m = (mbox_message *)AQueueObject(l);
+
+    if (maxlength < m->length)
+    {
+      printf("ERROR: RECV maxlength (%d) is too short (%d) '%s'\n", maxlength, m->length, (char*)message);
+      return MBOX_FAIL;
+    }
+
     if (AQueueRemove(&l) != QUEUE_SUCCESS)
     {
       printf("FATAL ERROR: RECV could not remove link from mailbox queue\n");
@@ -358,8 +346,6 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
   }
 
   dstrcpy((char *)message, m->buffer);
-  //bcopy((void *) m->buffer, message, (m->length));
-  //printf("----------It is received: %s-->%s\n", (char *)message, m->buffer);
   m->inuse = 0;
 
   if (CondHandleSignal(mailbox[handle].notFull) != SYNC_SUCCESS)
@@ -367,7 +353,7 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
     printf("ERROR: RECV mailbox is full?\n");
     return MBOX_FAIL;
   }
-
+  
   // release lock
   if (LockHandleRelease(mailbox[handle].lock) != SYNC_SUCCESS)
   {

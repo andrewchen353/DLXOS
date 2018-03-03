@@ -876,7 +876,7 @@ ProcessGetFromFile (int fd, unsigned char *buf, uint32 *addr, int max)
 	    (int)(seekpos + lpos - localbuf), nbytes);
   return (nbytes);
 }
-
+
 //----------------------------------------------------------------------
 //
 //	main
