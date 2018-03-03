@@ -7,3 +7,4 @@ It works with both lottery and round robin scheduling.
 In process.h, we defined macros for lottery, dynamic, and round robin scheduling.
 Dynamic and round robin macros are commented out. 
 Dynamic is defined on line 292 and round robin is on line 217 of process.c.
+In userprog4.c we had to change the order of the args for the process_create function call because it wasn't aligned with the process_create function declaration.
