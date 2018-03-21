@@ -11,8 +11,8 @@
 #include "memory.h"
 #include "queue.h"
 
-// num_pages = size_of_memory / size_of_one_page
-static uint32 freemap[/*size*/];
+// num_pages = size_of_memory / size_of_one_page = 2^21 / 4096 = 512
+static uint32 freemap[MEM_MAX_PAGES / 32];  // num_pages / 32
 static uint32 pagestart;
 static int nfreepages;
 static int freemapmax;
@@ -56,6 +56,30 @@ int MemoryGetSize() {
 //
 //----------------------------------------------------------------------
 void MemoryModuleInit() {
+  int i;
+  int page_idx;  
+  uint32 pagemask;
+  uint32 onemask;
+
+  pagestart = ((lastosaddress & 0xFFFFF000) >> 12) + 1;
+  page_idx = pagestart / 32;
+
+  pagemask = 0xFFFFFFFF << (pagestart - page_idx * 32);
+  onemask = 0xFFFFFFFF;
+
+  for(i = MEM_MAX_PAGES / 32 - 1; i >= 0; i--)
+  {
+    if (i > page_idx)
+      freemap[i] = onemask;      
+    else
+      freemap[i] = 0;
+  }
+
+  freemap[page_idx] = pagemask;
+
+  nfreepages = MEM_MAX_PAGES - pagestart + 1;
+
+  return; //TODO check to make sure it works
 }
 
 
@@ -68,6 +92,22 @@ void MemoryModuleInit() {
 //
 //----------------------------------------------------------------------
 uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
+  uint32 page_num;
+  uint32 offset;
+  uint32 entry;
+  
+  if (addr > MEM_MAX_VIRTUAL_ADDRESS)
+    return MEM_FAIL; //FIXME is this the correct return?
+
+  page_num = ((addr & 0xFFFFF000) >> 12);
+  offset = (addr & 0x00000FFF);
+
+  entry = pcb->pagetable[page_num];
+
+  if (!(entry & MEM_PTE_VALID))
+    MemoryPageFaultHandler(pcb); //FIXME more may need to be done
+  
+  return ((entry & 0xFFFFF000) | offset);
 }
 
 
@@ -169,7 +209,7 @@ int MemoryCopyUserToSystem (PCB *pcb, unsigned char *from,unsigned char *to, int
 //---------------------------------------------------------------------
 int MemoryPageFaultHandler(PCB *pcb) {
 
-  /* uint32 addr = pcb->currentSavedFrame[PROCESS_STACK_FAULT]; */
+  uint32 addr = pcb->currentSavedFrame[PROCESS_STACK_FAULT];
 
   /* // segfault if the faulting address is not part of the stack */
   /* if (vpagenum < stackpagenum) { */
@@ -193,15 +233,49 @@ int MemoryPageFaultHandler(PCB *pcb) {
 //---------------------------------------------------------------------
 
 int MemoryAllocPage(void) {
-  return -1;
+  int i;
+  uint32 page_idx;
+  uint32 page_bit;
+  uint32 page_bunch;  
+
+  if(!nfreepages) return 0;
+  
+  for (i = 0; i < MEM_MAX_PAGES; i++)
+  { 
+    page_bunch = freemap[i];
+    page_bit = 0;
+    for (j = 0; j < 32; j++) {
+      if (page_bunch & 0x1) {
+        page_bit = j;
+        page_idx = i;
+        break;
+      }
+      page_bunch = page_bunch >> 0x1;
+    }
+  }
+
+  // set allocated page bit to 0 FIXME
+  freemap[page_idx] = freemap[page_idx] | ( (0xFFFFFFFF << page_bit) | (1 << (page_bit + 1) - 1) )
+ 
+  nfreepages--;
+  
+  return page_idx * 32 + page_bit;
 }
 
 
 uint32 MemorySetupPte (uint32 page) {
+  //FIXME
+  MemoryFreePage(page);
   return -1;
 }
 
 
 void MemoryFreePage(uint32 page) {
+  uint32 page_idx = page / 32;
+  uint32 page_bit = page - page_idx * 32;
+  uint32 page_mask = 1 << page_bit;
+  
+  freemap[page_idx] |= page_mask;
+  nfreepages++;
 }
 
