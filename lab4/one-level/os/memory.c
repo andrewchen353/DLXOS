@@ -15,7 +15,7 @@
 static uint32 freemap[MEM_MAX_PAGES / 32];  // num_pages / 32
 static uint32 pagestart;
 static int nfreepages;
-static int freemapmax;
+//static int freemapmax;
 
 //----------------------------------------------------------------------
 //
@@ -28,9 +28,9 @@ static int freemapmax;
 //
 //----------------------------------------------------------------------
 static int negativeone = 0xFFFFFFFF;
-static inline uint32 invert (uint32 n) {
+/*static inline uint32 invert (uint32 n) {
   return (n ^ negativeone);
-}
+}*/
 
 //----------------------------------------------------------------------
 //
@@ -70,7 +70,7 @@ void MemoryModuleInit() {
   for(i = MEM_MAX_PAGES / 32 - 1; i >= 0; i--)
   {
     if (i > page_idx)
-      freemap[i] = onemask;      
+      freemap[i] = onemask;
     else
       freemap[i] = 0;
   }
@@ -97,16 +97,21 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
   uint32 entry;
   
   if (addr > MEM_MAX_VIRTUAL_ADDRESS)
-    return MEM_FAIL; //FIXME is this the correct return?
+  {
+    ProcessKill();
+    return MEM_FAIL;
+  }
 
-  page_num = ((addr & 0xFFFFF000) >> 12);
+  page_num = ((addr & 0xFFFFF000) >> MEM_L1FIELD_FIRST_BITNUM);
   offset = (addr & 0x00000FFF);
 
   entry = pcb->pagetable[page_num];
 
   if (!(entry & MEM_PTE_VALID))
+  {
+    pcb->currentSavedFrame[PROCESS_STACK_FAULT] = addr;
     MemoryPageFaultHandler(pcb); //FIXME more may need to be done
-  
+  }
   return ((entry & 0xFFFFF000) | offset);
 }
 
@@ -210,20 +215,23 @@ int MemoryCopyUserToSystem (PCB *pcb, unsigned char *from,unsigned char *to, int
 int MemoryPageFaultHandler(PCB *pcb) {
 
   uint32 addr = pcb->currentSavedFrame[PROCESS_STACK_FAULT];
+  uint32 userstackaddr = pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER];
+  uint32 vpagenum = addr >> MEM_L1FIELD_FIRST_BITNUM;
+  uint32 stackpagenum = userstackaddr >> MEM_L1FIELD_FIRST_BITNUM;
+  uint32 ppagenum;
 
   /* // segfault if the faulting address is not part of the stack */
-  /* if (vpagenum < stackpagenum) { */
-  /*   dbprintf('m', "addr = %x\nsp = %x\n", addr, pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]); */
-  /*   printf("FATAL ERROR (%d): segmentation fault at page address %x\n", findpid(pcb), addr); */
-  /*   ProcessKill(); */
-  /*   return MEM_FAIL; */
-  /* } */
+  if (vpagenum < stackpagenum) {
+    dbprintf('m', "addr = %x\nsp = %x\n", addr, pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]);
+    printf("FATAL ERROR (%d): segmentation fault at page address %x\n", GetPidFromAddress(pcb), addr);
+    ProcessKill();
+    return MEM_FAIL;
+  }
 
-  /* ppagenum = MemoryAllocPage(); */
-  /* pcb->pagetable[vpagenum] = MemorySetupPte(ppagenum); */
-  /* dbprintf('m', "Returning from page fault handler\n"); */
-  /* return MEM_SUCCESS; */
-  return MEM_FAIL;
+  ppagenum = MemoryAllocPage();
+  pcb->pagetable[vpagenum] = MemorySetupPte(ppagenum);
+  dbprintf('m', "Returning from page fault handler\n");
+  return MEM_SUCCESS;
 }
 
 
@@ -231,9 +239,9 @@ int MemoryPageFaultHandler(PCB *pcb) {
 // You may need to implement the following functions and access them from process.c
 // Feel free to edit/remove them
 //---------------------------------------------------------------------
-
+// FIXME set MEM_PTE_VALID to 1?????????????????????????????????????????????????????????????
 int MemoryAllocPage(void) {
-  int i;
+  int i, j;
   uint32 page_idx;
   uint32 page_bit;
   uint32 page_bunch;  
@@ -241,7 +249,7 @@ int MemoryAllocPage(void) {
   if(!nfreepages) return 0;
   
   for (i = 0; i < MEM_MAX_PAGES; i++)
-  { 
+  {
     page_bunch = freemap[i];
     page_bit = 0;
     for (j = 0; j < 32; j++) {
@@ -254,8 +262,8 @@ int MemoryAllocPage(void) {
     }
   }
 
-  // set allocated page bit to 0 FIXME
-  freemap[page_idx] = freemap[page_idx] | ( (0xFFFFFFFF << page_bit) | (1 << (page_bit + 1) - 1) )
+  // set allocated page bit to 0
+  freemap[page_idx] = freemap[page_idx] & (negativeone << (page_bit + 1) | ((1 << page_bit) - 1));
  
   nfreepages--;
   
@@ -264,9 +272,7 @@ int MemoryAllocPage(void) {
 
 
 uint32 MemorySetupPte (uint32 page) {
-  //FIXME
-  MemoryFreePage(page);
-  return -1;
+  return page * MEM_PAGESIZE + MEM_PTE_VALID;
 }
 
 
@@ -279,3 +285,10 @@ void MemoryFreePage(uint32 page) {
   nfreepages++;
 }
 
+int malloc() {
+  return 0;
+}
+
+int mfree() {
+  return 0;
+}
