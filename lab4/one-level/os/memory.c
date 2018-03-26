@@ -61,7 +61,7 @@ void MemoryModuleInit() {
   uint32 pagemask;
   uint32 onemask;
 
-  printf("\nEnter MemoryModuleInit\n");
+  dbprintf('m', "\nEnter MemoryModuleInit\n");
   pagestart = ((lastosaddress & 0xFFFFF000) >> 12) + 1;
   page_idx = pagestart / 32;
 
@@ -85,7 +85,7 @@ void MemoryModuleInit() {
 
   nfreepages = MEM_MAX_PAGES - pagestart + 1;
   //printf("nfreepages: %x\n", nfreepages);
-  printf("Leaving MemoryModuleInit\n");
+  dbprintf('m', "Leaving MemoryModuleInit\n");
   return; //TODO check to make sure it works
 }
 
@@ -102,8 +102,9 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
   uint32 page_num;
   uint32 offset;
   uint32 entry;
+  uint32 phys_addr;
 
-  printf("\nEntering MemoryTranslateUserToSystem\n"); 
+  dbprintf('m', "\nEntering MemoryTranslateUserToSystem\n"); 
   if (addr > MEM_MAX_VIRTUAL_ADDRESS)
   {
     ProcessKill();
@@ -114,17 +115,25 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
   offset = (addr & 0x00000FFF);
 
   entry = pcb->pagetable[page_num];
-  printf("page_num: %x\n", page_num);
-  printf("offset: %x\n", offset);
-  printf("entry: %x\n", entry);
+  dbprintf('m', "page_num: %x\n", page_num);
+  dbprintf('m', "offset: %x\n", offset);
+  dbprintf('m', "entry: %x\n", entry);
   if (!(entry & MEM_PTE_VALID))
   {
+    dbprintf('m', "MemoryTranslateUserToSystem calling page fault handler\n");
     pcb->currentSavedFrame[PROCESS_STACK_FAULT] = addr;
     return MemoryPageFaultHandler(pcb); //FIXME more may need to be done
   }
-  dbprintf('m', "return: %x\n", ((entry & 0xFFFFF000) | offset));
-  printf("Leaving MemoryTranslateUserToSystem\n");
-  return ((entry & 0xFFFFF000) | offset);
+  phys_addr = ((entry & 0xFFFFF000) | offset);
+  dbprintf('m', "phys_addr: %x\n", phys_addr);
+  if (phys_addr > MEM_MAX_PHYS_MEM - 1)
+  {
+    printf("FATAL ERROR: physical address is greater than max memory\n");
+    ProcessKill(); 
+    return MEM_FAIL;
+  }
+  dbprintf('m', "Leaving MemoryTranslateUserToSystem\n");
+  return phys_addr;
 }
 
 
@@ -152,8 +161,9 @@ int MemoryMoveBetweenSpaces (PCB *pcb, unsigned char *system, unsigned char *use
   int		bytesCopied = 0;  // Running counter
   int		bytesToCopy;      // Used to compute number of bytes left in page to be copied
 
+  dbprintf('m', "\nEntering MemoryMoveBetweenSpaces\n");
   while (n > 0) {
-    // Translate current user page to system address.  If this fails, return
+    // Translate current user page to system address.e001  If this fails, return
     // the number of bytes copied so far.
     curUser = (unsigned char *)MemoryTranslateUserToSystem (pcb, (uint32)user);
 
@@ -191,6 +201,7 @@ int MemoryMoveBetweenSpaces (PCB *pcb, unsigned char *system, unsigned char *use
     system += bytesToCopy;      // Current address in system space to copy next bytes from/into
     user += bytesToCopy;        // Current virtual address in user space to copy next bytes from/into
   }
+  dbprintf('m', "Leaving MemoryMoveBetweenSpaces\n");
   return (bytesCopied);
 }
 
@@ -203,10 +214,12 @@ int MemoryMoveBetweenSpaces (PCB *pcb, unsigned char *system, unsigned char *use
 //
 //----------------------------------------------------------------------
 int MemoryCopySystemToUser (PCB *pcb, unsigned char *from,unsigned char *to, int n) {
+  dbprintf('m', "\nEntering and leaving MemoryCopySystemToUser\n");
   return (MemoryMoveBetweenSpaces (pcb, from, to, n, 1));
 }
 
 int MemoryCopyUserToSystem (PCB *pcb, unsigned char *from,unsigned char *to, int n) {
+  dbprintf('m', "\nEntering MemoryCopyUserToSystem\n");
   return (MemoryMoveBetweenSpaces (pcb, to, from, n, -1));
 }
 
@@ -232,7 +245,7 @@ int MemoryPageFaultHandler(PCB *pcb) {
   uint32 stackpagenum = userstackaddr >> MEM_L1FIELD_FIRST_BITNUM;
   uint32 ppagenum;
 
-  printf("\nEntering MemoryPageFaultHandler\n");
+  dbprintf('m', "\nEntering MemoryPageFaultHandler\n");
 
   /* // segfault if the faulting address is not part of the stack */
   if (vpagenum < stackpagenum) {
@@ -245,7 +258,7 @@ int MemoryPageFaultHandler(PCB *pcb) {
   ppagenum = MemoryAllocPage();
   pcb->pagetable[vpagenum] = MemorySetupPte(ppagenum);
   dbprintf('m', "Returning from page fault handler\n");
-  printf("Leaving MemoryPageFaultHandler\n");
+  dbprintf('m', "Leaving MemoryPageFaultHandler\n");
   return MEM_SUCCESS;
 }
 
@@ -262,7 +275,7 @@ int MemoryAllocPage(void) {
   uint32 page_bunch;  
   int physical_page;
 
-  printf("\nMemoryAlloc\n");
+  dbprintf('m', "\nMemoryAlloc\n");
 
   if(!nfreepages) return 0;
   
@@ -281,8 +294,8 @@ int MemoryAllocPage(void) {
     }
     page_bunch = page_bunch >> 0x1;
   }
-  printf("page_bit: %d\n", page_bit);
-  printf("freemap[%d] before: %x\n", page_idx, freemap[page_idx]);
+  dbprintf('m', "page_bit: %d\n", page_bit);
+  dbprintf('m', "freemap[%d] before: %x\n", page_idx, freemap[page_idx]);
   // set allocated page bit to 0
   if (page_bit == 31)
     freemap[page_idx] = 0x0;
@@ -291,8 +304,8 @@ int MemoryAllocPage(void) {
  
   nfreepages--;
  
-  printf("freemap[%d] after: %x\n", page_idx, freemap[page_idx]);
-  printf("return val: %d\n", page_idx * 32 + page_bit);
+  dbprintf('m', "freemap[%d] after: %x\n", page_idx, freemap[page_idx]);
+  dbprintf('m', "return val: %d\n", page_idx * 32 + page_bit);
 
   physical_page = page_idx * 32 + page_bit;
   if (physical_page > ((MemoryGetSize() - 1 ) >> MEM_L1FIELD_FIRST_BITNUM))
@@ -303,7 +316,7 @@ int MemoryAllocPage(void) {
 
 
 uint32 MemorySetupPte (uint32 page) {
-  printf("\nEnter and leave MemorySetupPte\n");
+  dbprintf('m', "\nEnter and leave MemorySetupPte\n");
   return page * MEM_PAGESIZE + MEM_PTE_VALID;
 }
 
@@ -313,9 +326,9 @@ void MemoryFreePage(uint32 page) {
   uint32 page_bit = page - page_idx * 32;
   uint32 page_mask = 1 << page_bit;
   
-  printf("\nEnter MemoryFreePage\n");
+  dbprintf('m', "\nEnter MemoryFreePage\n");
   freemap[page_idx] |= page_mask;
-  printf("Leave MemoryFreePage\n");
+  dbprintf('m', "Leave MemoryFreePage\n");
   nfreepages++;
 }
 

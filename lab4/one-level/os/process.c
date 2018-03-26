@@ -424,21 +424,32 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   //---------------------------------------------------------
 
   // System stack
-  printf("\n-----Process Fork-----\n");
-  syspage = MemoryAllocPage();
+  dbprintf('m', "\n-----Process Fork-----\n");
+  if ((syspage = MemoryAllocPage()) == MEM_FAIL) {
+    printf("FATAL ERROR: memory not allocated\n");
+    exitsim();
+  }
   pcb->sysStackArea = syspage * MEM_PAGESIZE;
   stackframe = (uint32*)(pcb->sysStackArea + MEM_PAGESIZE - 4);
-  printf("system stack done\n");
+  dbprintf('m', "system stack done\n");
   
   // User stack
-  userpage = MemoryAllocPage();
+  if ((userpage = MemoryAllocPage()) == MEM_FAIL) {
+    printf("FATAL ERROR: memory not allocated\n");
+    exitsim();
+  }
   pcb->pagetable[MEM_L1TABLE_SIZE - 1] = MemorySetupPte(userpage);
-  printf("user stack done\n");
+  dbprintf('m', "user stack done\n");
   
   // Assign 4 pages
-  for(i = 0; i < 4; i++)
-    pcb->pagetable[i] = MemorySetupPte(MemoryAllocPage());
-  printf("assign 4 pages done\n");
+  for(i = 0; i < 4; i++) {
+    if ((pcb->pagetable[i] = MemoryAllocPage()) == MEM_FAIL) {
+      printf("FATAL ERROR: memroy not allocated\n");
+      exitsim();
+    }
+    pcb->pagetable[i] = MemorySetupPte(pcb->pagetable[i]);
+  }
+  dbprintf('m', "assign 4 pages done\n");
 
 
   // Now that the stack frame points at the bottom of the system stack memory area, we need to

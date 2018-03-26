@@ -1437,7 +1437,7 @@ InstNef (uint32 inst, Cpu *cpu)
   if (cpu->GetFregF (src1) != cpu->GetFregF (src2)) {
     cpu->SetStatusBit (DLX_STATUS_FPTRUE);
   } else {
-    cpu->ClrStatusBit (DLX_STATUS_FPTRUE);
+    cpu->ClrStatusBit (DLX_STATUS_FPTRUE);University of Maryland Baltimore County
   }	
   return (1);
 }
@@ -1620,7 +1620,7 @@ InstLed (uint32 inst, Cpu *cpu)
   } else {
     cpu->ClrStatusBit (DLX_STATUS_FPTRUE);
   }	
-  return (1);
+  return (1);University of Maryland Baltimore County
 }
 
 static
@@ -2452,35 +2452,35 @@ Cpu::Printf ()
     if (*c == '%') {
       // if this is a %%, skip past second %
       if (*(c+1) == '%') {
-	c++;
-	continue;
+      	c++;
+      	continue;
       }
       // Get the current argument off the stack
       args[nargs] = GetParam(nargs+1);
       DBPRINTF ('p', "Argument %d at 0x%x is %d (0x%x).\n", nargs,
-		args[nargs], args[nargs]);
+    		args[nargs], args[nargs]);
       while (1) {
-	c++;
-	if (*c == 's') {
-	  // If it's a string, the address is relative to the
-	  // start of emulated memory.
-	  args[nargs] += (uint32)memory;
-	  break;
-	} else if (*c == 'l') {
-	  continue;
-	} else if ((*c == 'f') || (*c == 'g') || (*c == 'e')) {
-	  // If it's a floating point number, it'll be passed as
-	  // a double, so grab the second word also.
-	  nargs += 1;
-	  args[nargs] = GetParam(nargs+1);
-	  break;
-	} else if ((*c >= 'a') && (*c <= 'z')) {
-	  // If it's another formatting character, it's not
-	  // a string, but we can leave the loop anyway.
-	  break;
-	}
-      }
-      nargs += 1;
+      	c++;
+      	if (*c == 's') {
+      	  // If it's a string, the address is relative to the
+      	  // start of emulated memory.
+      	  args[nargs] += (uint32)memory;
+      	  break;
+      	} else if (*c == 'l') {
+      	  continue;
+      	} else if ((*c == 'f') || (*c == 'g') || (*c == 'e')) {
+      	  // If it's a floating point number, it'll be passed as
+      	  // a double, so grab the second word also.
+      	  nargs += 1;
+      	  args[nargs] = GetParam(nargs+1);
+      	  break;
+    	} else if ((*c >= 'a') && (*c <= 'z')) {
+    	  // If it's another formatting character, it's not
+	      // a string, but we can leave the loop anyway.
+    	  break;
+    	}
+    }
+    nargs += 1;
     }
   }
   printf (fmtaddr + (char *)memory,
