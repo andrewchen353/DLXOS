@@ -424,17 +424,21 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   //---------------------------------------------------------
 
   // System stack
+  printf("\n-----Process Fork-----\n");
   syspage = MemoryAllocPage();
   pcb->sysStackArea = syspage * MEM_PAGESIZE;
-  *stackframe = pcb->sysStackArea + MEM_PAGESIZE - 3;
+  stackframe = (uint32*)(pcb->sysStackArea + MEM_PAGESIZE - 4);
+  printf("system stack done\n");
   
   // User stack
   userpage = MemoryAllocPage();
   pcb->pagetable[MEM_L1TABLE_SIZE - 1] = MemorySetupPte(userpage);
+  printf("user stack done\n");
   
   // Assign 4 pages
   for(i = 0; i < 4; i++)
     pcb->pagetable[i] = MemorySetupPte(MemoryAllocPage());
+  printf("assign 4 pages done\n");
 
 
   // Now that the stack frame points at the bottom of the system stack memory area, we need to
@@ -460,7 +464,6 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // previous frame.
   dbprintf('m', "ProcessFork: stackframe = 0x%x\n", (int)stackframe);
   stackframe[PROCESS_STACK_PREV_FRAME] = 0;
-
   //----------------------------------------------------------------------
   // STUDENT: setup the PTBASE, PTBITS, and PTSIZE here on the current
   // stack frame.
@@ -468,6 +471,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   stackframe[PROCESS_STACK_PTBASE] = *(pcb->pagetable);  
   stackframe[PROCESS_STACK_PTSIZE] = (MEM_MAX_VIRTUAL_ADDRESS + 1) / MEM_PAGESIZE;
   stackframe[PROCESS_STACK_PTBITS] =  stackframe[PROCESS_STACK_PTSIZE] * 8;
+  printf("ptbase, ptsize, ptbits done\n\n");
 
   if (isUser) {
     dbprintf ('p', "About to load %s\n", name);
@@ -909,10 +913,12 @@ void main (int argc, char *argv[])
   } else {
     dbprintf('i', "No user program passed!\n");
   }
+
   ClkStart();
   dbprintf ('i', "Set timer quantum to %d, about to run first process.\n",
 	    processQuantum);
   intrreturn ();
+    printf("xx love you too\n\n");
   // Should never be called because the scheduler exits when there
   // are no runnable processes left.
   exitsim();	// NEVER RETURNS!
