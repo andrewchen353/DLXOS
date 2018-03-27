@@ -27,5 +27,7 @@ uint32 MemorySetupPte(uint32 page);
 void MemoryFreePage(uint32 page);
 int malloc();
 int mfree();
+//void* malloc(int memsize);
+//int mfree(void* ptr);
 
 #endif	// _memory_h_

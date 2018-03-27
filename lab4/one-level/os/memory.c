@@ -335,8 +335,11 @@ void MemoryFreePage(uint32 page) {
 
 int malloc() {
   return 0;
+//void* malloc(int memsize) {
+  //return NULL;
 }
 
 int mfree() {
+//int mfree(void* ptr) {
   return 0;
 }
