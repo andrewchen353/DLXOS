@@ -61,13 +61,13 @@ void MemoryModuleInit() {
   uint32 pagemask;
   uint32 onemask;
 
-  dbprintf('m', "\nEnter MemoryModuleInit (%d)\n", GetCurrentPid());
-  pagestart = ((lastosaddress & 0xFFFFF000) >> 12) + 1;
+  dbprintf('m', "\nEnter MemoryModuleInit (%u)\n", GetCurrentPid());
+  pagestart = ((lastosaddress & 0xFFFFF000) >> MEM_L1FIELD_FIRST_BITNUM) + 1;
   page_idx = pagestart / 32;
 
-  /*printf("MemoryModuleInit:\nlastosaddress: %x\n", lastosaddress);
-  printf("pagestart: %x\n", pagestart);
-  printf("page_idx: %x\n", page_idx);*/
+  dbprintf('m', "MemoryModuleInit:\nlastosaddress: %x\n", lastosaddress);
+  dbprintf('m', "pagestart: %x\n", pagestart);
+  dbprintf('m', "page_idx: %x\n", page_idx);
 
   pagemask = 0xFFFFFFFF << (pagestart - page_idx * 32);
   onemask = 0xFFFFFFFF;
@@ -111,10 +111,11 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
     return MEM_FAIL;
   }
 
-  page_num = ((addr & 0xFFFFF000) >> MEM_L1FIELD_FIRST_BITNUM);
+  page_num = addr >> MEM_L1FIELD_FIRST_BITNUM;
   offset = (addr & 0x00000FFF);
 
   entry = pcb->pagetable[page_num];
+  dbprintf('m', "addr: %x\n", addr);
   dbprintf('m', "page_num: %x\n", page_num);
   dbprintf('m', "offset: %x\n", offset);
   dbprintf('m', "entry: %x\n", entry);
@@ -126,13 +127,13 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
   }
   phys_addr = ((entry & 0xFFFFF000) | offset);
   dbprintf('m', "phys_addr: %x\n", phys_addr);
-  if (phys_addr > MEM_MAX_PHYS_MEM - 1)
+  /*if (phys_addr > MEM_MAX_PHYS_MEM - 1)
   {
     printf("FATAL ERROR: physical address is greater than max memory\n");
     ProcessKill(); 
     return MEM_FAIL;
-  }
-  dbprintf('m', "Leaving MemoryTranslateUserToSystem (%d)\n", GetCurrentPid());
+  }*/
+  dbprintf('m', "Leaving MemoryTranslateUserToSystem (%u)\n", GetCurrentPid());
   return phys_addr;
 }
 
@@ -246,10 +247,12 @@ int MemoryPageFaultHandler(PCB *pcb) {
   uint32 ppagenum;
 
   dbprintf('m', "\nEntering MemoryPageFaultHandler (%d)\n", GetCurrentPid());
+  dbprintf('m', "Number of free pages = %u\n", nfreepages);
 
   /* // segfault if the faulting address is not part of the stack */
   if (vpagenum < stackpagenum) {
     dbprintf('m', "addr = %x\nsp = %x\n", addr, pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]);
+    printf("vpagenum = %x, stackpagenum = %x \n", vpagenum, stackpagenum);
     printf("FATAL ERROR (%d): segmentation fault at page address %x\n", GetPidFromAddress(pcb), addr);
     ProcessKill();
     return MEM_FAIL;
@@ -273,7 +276,7 @@ int MemoryAllocPage(void) {
   uint32 page_idx;
   uint32 page_bit;
   uint32 page_bunch;  
-  int physical_page;
+  int virtual_page;
 
   dbprintf('m', "\nEntering MemoryAlloc (%d)\n", GetCurrentPid());
 
@@ -306,13 +309,13 @@ int MemoryAllocPage(void) {
  
   dbprintf('m', "freemap[%d] after: %x\n", page_idx, freemap[page_idx]);
 
-  physical_page = page_idx * 32 + page_bit;
-  dbprintf('m', "physical_page: %d\n", physical_page);
+  virtual_page = page_idx * 32 + page_bit;
+  dbprintf('m', "virtual_page: %d\n", virtual_page);
   dbprintf('m', "Leaving MemoryAlloc (%d)", GetCurrentPid());
-  if (physical_page > ((MemoryGetSize() - 1 ) >> MEM_L1FIELD_FIRST_BITNUM))
+  if (virtual_page > MEM_L1TABLE_SIZE)
     return MEM_FAIL;
   else
-    return physical_page;
+    return virtual_page;
 }
 
 

@@ -122,6 +122,7 @@ void ProcessSetStatus (PCB *pcb, int status) {
 //----------------------------------------------------------------------
 void ProcessFreeResources (PCB *pcb) {
   int i = 0;
+  int userstack_page = pcb->sysStackPtr[PROCESS_STACK_USER_STACKPOINTER] >> MEM_L1FIELD_FIRST_BITNUM;
 
   // Allocate a new link for this pcb on the freepcbs queue
   if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
@@ -141,7 +142,11 @@ void ProcessFreeResources (PCB *pcb) {
   //------------------------------------------------------------
   for (i = 0; i < MEM_L1TABLE_SIZE; i++)
     if (pcb->pagetable[i] & 0x1)
-      MemoryFreePage(pcb->pagetable[i]);
+      MemoryFreePage(pcb->pagetable[i] >> MEM_L1FIELD_FIRST_BITNUM);
+
+  MemoryFreePage(pcb->sysStackArea / MEM_PAGESIZE);
+
+  pcb->sysStackArea = 0;
 
   ProcessSetStatus (pcb, PROCESS_STATUS_FREE);
 }
@@ -480,8 +485,9 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // stack frame.
   //----------------------------------------------------------------------
   stackframe[PROCESS_STACK_PTBASE] = *(pcb->pagetable);  
-  stackframe[PROCESS_STACK_PTSIZE] = (MEM_MAX_VIRTUAL_ADDRESS + 1) / MEM_PAGESIZE;
-  stackframe[PROCESS_STACK_PTBITS] =  stackframe[PROCESS_STACK_PTSIZE] * 8;
+  stackframe[PROCESS_STACK_PTSIZE] = MEM_L1TABLE_SIZE;
+  //stackframe[PROCESS_STACK_PTBITS] =  stackframe[PROCESS_STACK_PTSIZE] * 8;
+  stackframe[PROCESS_STACK_PTBITS] = (MEM_L1FIELD_FIRST_BITNUM | MEM_L1FIELD_FIRST_BITNUM << 16);
   printf("ptbase, ptsize, ptbits done\n\n");
 
   if (isUser) {

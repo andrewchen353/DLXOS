@@ -1975,12 +1975,12 @@ Cpu::VaddrToPaddr (uint32 vaddr, uint32& paddr, uint32 op, uint32 pteflags)
       // Mask off the low bits
       vaddr &= ~pagemask;
       if ((entrynum = (vaddr >> pt1pagebits)) >=
-	  GetSreg (DLX_SREG_PGTBL_SIZE)) {
-	DBPRINTF ('m', "Out of range (L1 = %db, L2 = %db size=%d entry=%d)\n",
-		  pt1pagebits, pt2pagebits, GetSreg(DLX_SREG_PGTBL_SIZE),
-		  entrynum);
-	CauseException (DLX_EXC_ACCESS);
-	return (0);
+	      GetSreg (DLX_SREG_PGTBL_SIZE)) {
+      	DBPRINTF ('m', "Out of range (L1 = %db, L2 = %db size=%d entry=%d)\n",
+		      pt1pagebits, pt2pagebits, GetSreg(DLX_SREG_PGTBL_SIZE),
+    		  entrynum);
+      	CauseException (DLX_EXC_ACCESS);
+      	return (0);
       }
       pteaddr = pt1base + 4 * entrynum;
       paddr = Memory (pteaddr);
