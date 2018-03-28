@@ -84,9 +84,9 @@ void MemoryModuleInit() {
   freemap[page_idx] = pagemask;
 
   nfreepages = MEM_MAX_PAGES - pagestart + 1;
-  //printf("nfreepages: %x\n", nfreepages);
+  dbprintf('m', "nfreepages: %x\n", nfreepages);
   dbprintf('m', "Leaving MemoryModuleInit (%d)\n", GetCurrentPid());
-  return; //TODO check to make sure it works
+  return; //TODO check to make sure it works*/
 }
 
 

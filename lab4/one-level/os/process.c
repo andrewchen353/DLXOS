@@ -484,11 +484,9 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // STUDENT: setup the PTBASE, PTBITS, and PTSIZE here on the current
   // stack frame.
   //----------------------------------------------------------------------
-  stackframe[PROCESS_STACK_PTBASE] = *(pcb->pagetable);  
+  stackframe[PROCESS_STACK_PTBASE] = pcb->pagetable;  
   stackframe[PROCESS_STACK_PTSIZE] = MEM_L1TABLE_SIZE;
-  //stackframe[PROCESS_STACK_PTBITS] =  stackframe[PROCESS_STACK_PTSIZE] * 8;
   stackframe[PROCESS_STACK_PTBITS] = (MEM_L1FIELD_FIRST_BITNUM | MEM_L1FIELD_FIRST_BITNUM << 16);
-  printf("ptbase, ptsize, ptbits done\n\n");
 
   if (isUser) {
     dbprintf ('p', "About to load %s\n", name);
@@ -935,7 +933,6 @@ void main (int argc, char *argv[])
   dbprintf ('i', "Set timer quantum to %d, about to run first process.\n",
 	    processQuantum);
   intrreturn ();
-    printf("xx love you too\n\n");
   // Should never be called because the scheduler exits when there
   // are no runnable processes left.
   exitsim();	// NEVER RETURNS!
