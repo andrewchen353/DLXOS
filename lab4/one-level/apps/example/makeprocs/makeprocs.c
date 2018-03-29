@@ -74,6 +74,7 @@ void main (int argc, char *argv[])
   Printf("\n-------------------------------------Part5-------------------------------------------\n");
   Printf("-------------------------------------------------------------------------------------\n");
 
+  /*
   // Uncomment this section to run part 6
   Printf("\n-------------------------------------Part6-------------------------------------------\n");
   process_create(PART6, s_procs_completed_str, NULL);
@@ -82,6 +83,7 @@ void main (int argc, char *argv[])
     Exit();
   }
   Printf("-------------------------------------------------------------------------------------\n");
+  */
 
   Printf("makeprocs (%d): All other processes completed, exiting main process.\n", getpid());
 
