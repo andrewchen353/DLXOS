@@ -336,13 +336,74 @@ void MemoryFreePage(uint32 page) {
   nfreepages++;
 }
 
-int malloc() {
-  return 0;
-//void* malloc(int memsize) {
-  //return NULL;
+// TODO ASK if implementation works.
+void* malloc(PCB *pcb, int memsize) {
+  uint32 size_to_alloc;
+  uint32 curr_size;
+  uint32 return_addr;
+  uint32 start_addr;
+  heapblock* block;
+  heapblock* next;
+  Queue* heapQueue;
+  Link* l;
+  Link* last_l;
+
+  if (memsize <= 0) {
+    dbprintf('m', "malloc (%d), allocation size must be a positive integer\n", GetCurrentPid());
+    return NULL;
+  }
+
+  if (memsize % 4 == 0)
+    size_to_alloc = memsize;
+  else
+    size_to_alloc = memsize + (4 - memsize % 4);
+
+  if (size_to_alloc > MEM_PAGESIZE) {
+    dbprintf('m', "malloc (%d), allocation size is larger than the allowed size\n", GetCurrentPid());
+    return NULL;
+  }
+  
+  curr_size = 0;
+  heapQueue = pcb->heapstart;
+  if (AQueueLength(heapQueue) == 1) {
+    l = AQueueFirst(heapQueue);
+    block = (heapblock *)AQueueObject(l);
+    start_addr = block->vaddr;
+    if (block->inuse == 0) {
+      block->size = size_to_alloc;
+      block->inuse = 1;
+      return_addr = block->vaddr;
+    } else {
+      curr_size += block->size;
+      next->vaddr = start_addr + curr_size;
+      next->size = size_to_alloc;
+      next->inuse = 1;
+      AQueueInsertAfter(heapQueue, AQueueFirst(heapQueue), AQueueAllocLink((void *)next));
+      return_addr = next->vaddr;
+    }
+  } else {
+    l = AQueueFirst(heapQueue);
+    start_addr = ((heapblock *)AQueueObject(l))->vaddr;
+    while (l != NULL) {
+      last_l = l;
+      curr_size += ((heapblock *)AQueueObject(l))->size;
+      l = AQueueNext(l);
+    }
+    if (curr_size + size_to_alloc > MEM_PAGESIZE) {
+      dbprintf('m', "malloc (%d), couldn't allocate the given size, heap would overflow\n", GetCurrentPid());
+      return NULL;
+    }
+    next->size = size_to_alloc;
+    next->vaddr = start_addr + curr_size;
+    next->inuse = 1;
+    return_addr = next->vaddr;
+    AQueueInsertAfter(heapQueue, last_l, AQueueAllocLink((void *)next));
+  }   
+
+  printf("Created a heap block of size <memsize> bytes: virtual address <vaddress>, physical address <paddress>.\n", memsize, return_addr, MemoryTranslateUserToSystem(pcb, return_addr));
+  return (void *)return_addr;
 }
 
-int mfree() {
-//int mfree(void* ptr) {
+int mfree(PCB* pcb, void* ptr) {
   return 0;
 }

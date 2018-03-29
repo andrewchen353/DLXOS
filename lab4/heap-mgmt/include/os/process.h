@@ -40,6 +40,7 @@ typedef struct PCB {
   unsigned int	flags;
   char		name[80];	// Process name
   uint32	pagetable[MEM_L1TABLE_SIZE]; // Statically allocated page table -- was pagetable[2] initially
+  Queue   *heapstart; // 
   Link		*l;		// Used for keeping PCB in queues
 } PCB;
 
@@ -100,7 +101,5 @@ void ProcessKill();
 //-------------------------------------------------------
 // Put any functions prototypes that you define here.
 //-------------------------------------------------------
-
-
 
 #endif	/* __process_h__ */

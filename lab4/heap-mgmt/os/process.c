@@ -89,6 +89,8 @@ void ProcessModuleInit () {
     for (j = 0; j < MEM_L1TABLE_SIZE; j++)
       pcbs[i].pagetable[j] = 0;
 
+    AQueueInit(pcbs[i].heapstart); // initialize heap Queue
+
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
       printf("FATAL ERROR: could not insert PCB link into queue in ProcessModuleInit!\n");
@@ -387,7 +389,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   uint32 initial_user_params_bytes;  // total number of bytes in initial user parameters array
   int syspage;
   int userpage;
-
+  heapblock* firstblock;
 
   intrs = DisableIntrs ();
   dbprintf ('I', "Old interrupt value was 0x%x.\n", intrs);
@@ -449,13 +451,25 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // Assign 4 pages
   for(i = 0; i < 4; i++) {
     if ((pcb->pagetable[i] = MemoryAllocPage()) == MEM_FAIL) {
-      printf("FATAL ERROR: memroy not allocated\n");
+      printf("FATAL ERROR: memory not allocated\n");
       exitsim();
     }
     pcb->pagetable[i] = MemorySetupPte(pcb->pagetable[i]);
   }
   dbprintf('m', "assign 4 pages done\n");
 
+  // assign heap page
+  // TODO keep defining blocks, issue?
+  if ((pcb->pagetable[i] = MemoryAllocPage()) == MEM_FAIL) {
+    printf("FATAL ERROR: memory not allocated\n");
+    exitsim();
+  }
+  pcb->pagetable[i] = MemorySetupPte(pcb->pagetable[i]);
+  firstblock->vaddr = i * MEM_PAGESIZE;
+  firstblock->size = 0;
+  firstblock->inuse = 0;
+  AQueueInsertFirst(pcb->heapstart, AQueueAllocLink(firstblock));
+  dbprintf('m', "ProcessFork (%d), finished assigning heap to page table\n");
 
   // Now that the stack frame points at the bottom of the system stack memory area, we need to
   // move it up (decrement it) by one stack frame size because we're about to fill in the

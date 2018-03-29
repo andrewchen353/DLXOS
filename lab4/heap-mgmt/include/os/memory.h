@@ -6,6 +6,13 @@
 
 extern int lastosaddress; // Defined in an assembly file
 
+// heapblock structure
+typedef struct heapblock {
+  uint32 vaddr;
+  uint32 size;
+  uint32 inuse;
+} heapblock;
+
 //--------------------------------------------------------
 // Existing function prototypes:
 //--------------------------------------------------------
@@ -25,9 +32,7 @@ int MemoryPageFaultHandler(PCB *pcb);
 int MemoryAllocPage(void);
 uint32 MemorySetupPte(uint32 page);
 void MemoryFreePage(uint32 page);
-int malloc();
-int mfree();
-//void* malloc(int memsize);
-//int mfree(void* ptr);
+void* malloc(PCB *pcb, int memsize);
+int mfree(PCB *pcb, void* ptr);
 
 #endif	// _memory_h_
