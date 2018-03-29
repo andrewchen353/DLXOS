@@ -4,6 +4,7 @@
 void main (int argc, char *argv[])
 {
   sem_t s_procs_completed; // Semaphore to signal the original process that we're done
+  int* mem; // memory location
 
   if (argc != 2) { 
     Printf("Usage: %s <handle_to_procs_completed_semaphore>\n"); 
@@ -15,6 +16,10 @@ void main (int argc, char *argv[])
 
   // Now print a message to show that everything worked
   Printf("Accessing memory inside the virtual address space but outside of currently allocated pages: %d\n", getpid());
+
+  mem = 0x20000000;
+  Printf("Accessing memory location %d\n", mem);
+  *mem = 0xA0A0A0A0;
 
   // Signal the semaphore to tell the original process that we're done
   if(sem_signal(s_procs_completed) != SYNC_SUCCESS) {
