@@ -12,13 +12,18 @@
 #include "queue.h"
 
 // num_pages = size_of_memory / size_of_one_page = 2^21 / 4096 = 512
-static uint32 freemap[MEM_MAX_PAGES / 32];  // num_pages / 32
+// total_pages = (1 << 8) * 4 = 1024 --> 256 pages for each l2 pagetable and
+// 2 bits to represent num_L1_pages
+static uint32 freemap[(MEM_MAX_PAGES * 2) / 32];
+
+
+
 static uint32 pagestart;
 static int nfreepages;
 //static int freemapmax;
 
 // Declaring L2 page table
-static l2_pagetable l2_pages[MEM_L2TABLE_SIZE];
+static l2_pagetable l2_num_tables[MEM_L2TABLE_SIZE];
 
 //----------------------------------------------------------------------
 //
@@ -31,9 +36,9 @@ static l2_pagetable l2_pages[MEM_L2TABLE_SIZE];
 //
 //----------------------------------------------------------------------
 static int negativeone = 0xFFFFFFFF;
-/*static inline uint32 invert (uint32 n) {
+static inline uint32 invert (uint32 n) {
   return (n ^ negativeone);
-}*/
+}
 
 //----------------------------------------------------------------------
 //
@@ -63,18 +68,29 @@ void MemoryModuleInit() {
   int page_idx;  
   uint32 pagemask;
   uint32 onemask;
+  uint32 l1_page;
+  uint32 l2_page;
 
   dbprintf('m', "\nEnter MemoryModuleInit (%u)\n", GetCurrentPid());
-  pagestart = ((lastosaddress & 0xFFFFF000) >> MEM_L1FIELD_FIRST_BITNUM) + 1;
-  page_idx = pagestart / 32;
+  
+  //**important
+  // L1_pagenum * L2_pagenum / 32 = page index
+  // do something to get the offset within the index
+  pagestart = (lastosaddress >> MEM_L2FIELD_FIRST_BITNUM) + 1;
+  l2_page = pagestart & 0xFF;
+  l1_page = pagestart >> 8;
+  page_idx = l1_page * l2_page / 32;
 
   dbprintf('m', "MemoryModuleInit:\nlastosaddress: %x\n", lastosaddress);
   dbprintf('m', "pagestart: %x\n", pagestart);
   dbprintf('m', "page_idx: %x\n", page_idx);
 
-  pagemask = 0xFFFFFFFF << (pagestart - page_idx * 32);
+  pagemask = 0xFFFFFFFF << ((l1_page * l2_page) - page_idx * 32);
   onemask = 0xFFFFFFFF;
   //printf("page_mask: %x\n", pagemask);
+  
+  for(i = 0; i < 256; i++)
+    l2_num_tables[i].inuse = 0;
 
   for(i = MEM_MAX_PAGES / 32 - 1; i >= 0; i--)
   {
@@ -86,7 +102,7 @@ void MemoryModuleInit() {
 
   freemap[page_idx] = pagemask;
 
-  nfreepages = MEM_MAX_PAGES - pagestart + 1;
+  nfreepages = MEM_MAX_PAGES - (l1_page * l2_page) + 1;
   dbprintf('m', "nfreepages: %x\n", nfreepages);
   dbprintf('m', "Leaving MemoryModuleInit (%d)\n", GetCurrentPid());
   return; //TODO check to make sure it works*/
@@ -106,6 +122,8 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
   uint32 offset;
   uint32 entry;
   uint32 phys_addr;
+  uint32 l1_pagenum;
+  uint32 l2_pagenum;
 
   dbprintf('m', "\nEntering MemoryTranslateUserToSystem (%d)\n", GetCurrentPid()); 
   if (addr > MEM_MAX_VIRTUAL_ADDRESS)
@@ -114,29 +132,29 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
     return MEM_FAIL;
   }
 
-  page_num = addr >> MEM_L1FIELD_FIRST_BITNUM;
-  offset = (addr & 0x00000FFF);
+  l1_pagenum = addr >> MEM_L1FIELD_FIRST_BITNUM; 
+  l2_pagenum = (addr >> MEM_L2FIELD_FIRST_BITNUM) & 0xFF;
 
-  entry = pcb->pagetable[page_num];
+  offset = (addr & 0x00000FFF);
+  //entry = ((uint32*)pcb->pagetable[l1_pagenum])[l2_pagenum];
+  entry = ((l2_pagetable *)pcb->pagetable[l1_pagenum]).table[l2_pagenum]; //FIXME
+
   dbprintf('m', "addr: %x\n", addr);
-  dbprintf('m', "page_num: %x\n", page_num);
+  dbprintf('m', "l1_pagenum: %x\n", l1_pagenum);
+  dbprintf('m', "l2_pagenum: %x\n", l2_pagenum);
   dbprintf('m', "offset: %x\n", offset);
   dbprintf('m', "entry: %x\n", entry);
+
   if (!(entry & MEM_PTE_VALID))
   {
     dbprintf('m', "MemoryTranslateUserToSystem calling page fault handler\n");
     pcb->currentSavedFrame[PROCESS_STACK_FAULT] = addr;
     return MemoryPageFaultHandler(pcb); //FIXME more may need to be done
   }
-  phys_addr = ((entry & 0xFFFFF000) | offset);
+  phys_addr = (entry & 0xFFFFF000) | offset;
   dbprintf('m', "phys_addr: %x\n", phys_addr);
-  /*if (phys_addr > MEM_MAX_PHYS_MEM - 1)
-  {
-    printf("FATAL ERROR: physical address is greater than max memory\n");
-    ProcessKill(); 
-    return MEM_FAIL;
-  }*/
   dbprintf('m', "Leaving MemoryTranslateUserToSystem (%u)\n", GetCurrentPid());
+  
   return phys_addr;
 }
 
@@ -337,6 +355,8 @@ void MemoryFreePage(uint32 page) {
   freemap[page_idx] |= page_mask;
   dbprintf('m', "Leave MemoryFreePage (%d)\n", GetCurrentPid());
   nfreepages++;
+
+  l2_num_tables[page].inuse = 0;
 }
 
 int malloc() {
