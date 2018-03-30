@@ -282,7 +282,7 @@ int MemoryAllocPage(void) {
 
   if(!nfreepages) return 0;
   
-  for (i = 0; i < MEM_MAX_PAGES; i++) {
+  for (i = 0; i < MEM_MAX_PAGES / 32; i++) {
     page_bunch = freemap[i];
     if (page_bunch) {
       page_idx = i;
