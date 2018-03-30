@@ -425,14 +425,18 @@ int mfree(PCB* pcb, void* ptr) {
   uint32     size_freed = -1;
   uint32*    addr = (int *) ptr;
   heapblock* block;
+  heapblock* prev;
+  heapblock* next;
   Queue*     heapQueue;
   Link*      l;
+  Link*      prevL = NULL;
+  Link*      nextL = NULL;
 
   if (ptr == NULL) {
     dbprintf('m', "mfree (%d), address given is a null pointer\n", GetCurrentPid());
     return -1;
   }
- 
+
   // TODO Check to see if two consecutive blocks are unused to free if possible 
   heapQueue = &(pcb->heapstart);
   l = AQueueFirst(heapQueue);
@@ -441,14 +445,38 @@ int mfree(PCB* pcb, void* ptr) {
     if (block->vaddr == addr) {
       size_freed = block->size;
       block->inuse = 0;
+      if (prevL != NULL && prev->inuse == 0) {
+        block->available = 1;
+        prev->size += block->size;
+        AQueueRemove(&l);
+        l = prevL;
+        block = AQueueObject(l);
+      }
+      nextL = AQueueNext(l);
+      if (nextL != NULL) {
+        next = (heapblock *)AQueueObject(nextL);
+        if (next->inuse == 0) {
+          next->available = 1;
+          block->size += next->size;
+          AQueueRemove(&nextL);
+        }
+      }
       break;
     }
+    prev = block;
+    prevL = l;
     l = AQueueNext(l);
   }
 
   if (l == NULL) {
     dbprintf('m', "mfree (%d), address given was not inside the heap space queue\n", GetCurrentPid());
     return -1;
+  }
+
+  l = AQueueFirst(heapQueue);
+  while (l != NULL) {
+    dbprintf('m', "mfree (%d), Contents of heapQueue: Block address = %d, block size = %d, inuse = %d, available = %d\n", GetCurrentPid(), ((heapblock *)AQueueObject(l))->vaddr, ((heapblock *)AQueueObject(l))->size, ((heapblock *)AQueueObject(l))->inuse, ((heapblock *)AQueueObject(l))->available);
+    l = AQueueNext(l);
   }
 
   printf("Freeing heap block of size %d bytes: virtual address %d, physical address %d.\n", size_freed, addr, MemoryTranslateUserToSystem(pcb, addr));

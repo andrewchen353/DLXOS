@@ -30,6 +30,8 @@
 #define	PROCESS_TYPE_SYSTEM	0x100
 #define	PROCESS_TYPE_USER	0x200
 
+#define PROCESS_HEAP_BLOCKS 0x100
+
 typedef	void (*VoidFunc)();
 
 // heapblock structure
@@ -37,6 +39,7 @@ typedef struct heapblock {
   uint32 vaddr;
   uint32 size;
   uint32 inuse;
+  uint32 available;
 } heapblock;
 
 // Process control block
@@ -48,7 +51,7 @@ typedef struct PCB {
   char		name[80];	// Process name
   uint32	pagetable[MEM_L1TABLE_SIZE]; // Statically allocated page table -- was pagetable[2] initially
   Queue   heapstart;
-  heapblock blocks[100]; 
+  heapblock blocks[PROCESS_HEAP_BLOCKS]; 
   Link		*l;		// Used for keeping PCB in queues
 } PCB;
 

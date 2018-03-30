@@ -93,6 +93,9 @@ void ProcessModuleInit () {
       printf("FATAL ERROR: Intializing heap queue failed\n"); // initialize heap Queue
       exitsim();
     } 
+    
+    for (j = 0; j < PROCESS_HEAP_BLOCKS; j++)
+      pcbs[i].blocks[j].available = 1;
 
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
@@ -365,8 +368,10 @@ static void ProcessExit () {
 int GetHeapBlock (PCB *pcb) {
   int i;
   for (i = 0; i < 100; i++) {
-    if (pcb->blocks[i].inuse == 0)
+    if (pcb->blocks[i].available) {
+      pcb->blocks[i].available = 0;
       return i;
+    }
   }
   return -1;
 }
