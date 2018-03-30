@@ -366,6 +366,8 @@ void* malloc(PCB *pcb, int memsize) {
    
   curr_size = 0;
   heapQueue = &(pcb->heapstart);
+
+  // TODO check to see if a block could be split to satisfy size
   l = AQueueFirst(heapQueue);
   while (l != NULL) {
     block = (heapblock *)AQueueObject(l);
@@ -378,7 +380,28 @@ void* malloc(PCB *pcb, int memsize) {
     l = AQueueNext(l);
   }
 
-  // TODO check to see if a block could be split to satisfy size
+  // TODO split up block if its size is bigger than the requested size
+  // Done?
+  if (flag == 0) {
+    l = AQueueFirst(heapQueue);
+    while (l != NULL) {
+      block = (heapblock *)AQueueObject(l);
+      if (flag == 0 && block->inuse == 0 && block->size > size_to_alloc) {
+        next = GetHeapBlock(pcb);
+        pcb->blocks[next].size = block->size - size_to_alloc;
+        pcb->blocks[next].vaddr = block->vaddr + size_to_alloc;
+        pcb->blocks[next].inuse = 0;
+        block->size = size_to_alloc;
+        block->inuse = 1;
+        return_addr = block->vaddr;
+        flag = 1;
+        AQueueInsertAfter(heapQueue, l, AQueueAllocLink(&(pcb->blocks[next])));
+        l = AQueueNext(l);
+        break;
+      }
+      l = AQueueNext(l);
+    }
+  }
 
   if (AQueueLength(heapQueue) == 1 && flag == 0) {
     l = AQueueFirst(heapQueue);
@@ -406,7 +429,7 @@ void* malloc(PCB *pcb, int memsize) {
       l = AQueueNext(l);
     }
     if (curr_size + size_to_alloc > MEM_PAGESIZE) {
-      dbprintf('m', "malloc (%d), couldn't allocate the given size, heap would overflow\n", GetCurrentPid());
+      dbprintf("malloc (%d), couldn't allocate the given size, heap would overflow\n", GetCurrentPid());
       return NULL;
     }
     next = GetHeapBlock(pcb);
@@ -415,6 +438,12 @@ void* malloc(PCB *pcb, int memsize) {
     pcb->blocks[next].inuse = 1;
     return_addr = pcb->blocks[next].vaddr;
     AQueueInsertAfter(heapQueue, last_l, AQueueAllocLink(&(pcb->blocks[next])));
+  }
+
+  l = AQueueFirst(heapQueue);
+  while (l != NULL) {
+    dbprintf('m', "malloc (%d), Contents of heapQueue: Block address = %d, block size = %d, inuse = %d, available = %d\n", GetCurrentPid(), ((heapblock *)AQueueObject(l))->vaddr, ((heapblock *)AQueueObject(l))->size, ((heapblock *)AQueueObject(l))->inuse, ((heapblock *)AQueueObject(l))->available);
+    l = AQueueNext(l);
   } 
 
   printf("Created a heap block of size %d bytes: virtual address %d, physical address %d.\n", memsize, return_addr, MemoryTranslateUserToSystem(pcb, return_addr));
@@ -437,7 +466,8 @@ int mfree(PCB* pcb, void* ptr) {
     return -1;
   }
 
-  // TODO Check to see if two consecutive blocks are unused to free if possible 
+  // TODO Check to see if two consecutive blocks are unused to free if possible
+  // Done? 
   heapQueue = &(pcb->heapstart);
   l = AQueueFirst(heapQueue);
   while (l != NULL) {
