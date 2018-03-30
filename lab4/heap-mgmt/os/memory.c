@@ -336,7 +336,7 @@ void MemoryFreePage(uint32 page) {
   nfreepages++;
 }
 
-// TODO ASK if implementation works.
+// TODO Ask if implementation works.
 void* malloc(PCB *pcb, int memsize) {
   uint32 size_to_alloc;
   uint32 curr_size;
@@ -429,7 +429,7 @@ void* malloc(PCB *pcb, int memsize) {
       l = AQueueNext(l);
     }
     if (curr_size + size_to_alloc > MEM_PAGESIZE) {
-      dbprintf("malloc (%d), couldn't allocate the given size, heap would overflow\n", GetCurrentPid());
+      dbprintf('m', "malloc (%d), couldn't allocate the given size, heap would overflow\n", GetCurrentPid());
       return NULL;
     }
     next = GetHeapBlock(pcb);
