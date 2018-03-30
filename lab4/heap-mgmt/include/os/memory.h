@@ -6,13 +6,6 @@
 
 extern int lastosaddress; // Defined in an assembly file
 
-// heapblock structure
-typedef struct heapblock {
-  uint32 vaddr;
-  uint32 size;
-  uint32 inuse;
-} heapblock;
-
 //--------------------------------------------------------
 // Existing function prototypes:
 //--------------------------------------------------------

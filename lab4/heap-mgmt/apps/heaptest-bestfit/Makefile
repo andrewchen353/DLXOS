@@ -10,6 +10,9 @@ run:
 runt:
 	cd ../../bin; dlxsim -D t -x os.dlx.obj -a -D t -u heaptest.dlx.obj 10; ee469_fixterminal
 
+runq:
+	cd ../../bin; dlxsim -D q -x os.dlx.obj -a -D q -u heaptest.dlx.obj 10; ee469_fixterminal
+
 runp:
 	cd ../../bin; dlxsim -D p -x os.dlx.obj -a -D p -u heaptest.dlx.obj 10; ee469_fixterminal
 

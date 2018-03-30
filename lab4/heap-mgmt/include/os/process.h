@@ -32,6 +32,13 @@
 
 typedef	void (*VoidFunc)();
 
+// heapblock structure
+typedef struct heapblock {
+  uint32 vaddr;
+  uint32 size;
+  uint32 inuse;
+} heapblock;
+
 // Process control block
 typedef struct PCB {
   uint32	*currentSavedFrame; // -> current saved frame.  MUST BE 1ST!
@@ -40,7 +47,8 @@ typedef struct PCB {
   unsigned int	flags;
   char		name[80];	// Process name
   uint32	pagetable[MEM_L1TABLE_SIZE]; // Statically allocated page table -- was pagetable[2] initially
-  Queue   *heapstart; // 
+  Queue   heapstart;
+  heapblock blocks[100]; 
   Link		*l;		// Used for keeping PCB in queues
 } PCB;
 
@@ -101,5 +109,6 @@ void ProcessKill();
 //-------------------------------------------------------
 // Put any functions prototypes that you define here.
 //-------------------------------------------------------
+int GetHeapBlock (PCB *pcb);
 
 #endif	/* __process_h__ */

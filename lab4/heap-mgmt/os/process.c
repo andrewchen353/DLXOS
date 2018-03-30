@@ -89,7 +89,10 @@ void ProcessModuleInit () {
     for (j = 0; j < MEM_L1TABLE_SIZE; j++)
       pcbs[i].pagetable[j] = 0;
 
-    AQueueInit(pcbs[i].heapstart); // initialize heap Queue
+    if (AQueueInit(&(pcbs[i].heapstart)) == QUEUE_FAIL) {
+      printf("FATAL ERROR: Intializing heap queue failed\n"); // initialize heap Queue
+      exitsim();
+    } 
 
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
@@ -352,6 +355,22 @@ static void ProcessExit () {
   exit ();
 }
 
+
+//----------------------------------------------------------------------
+//
+//	GetHeapBlock
+//
+//---------------------------------------------------------------------
+
+int GetHeapBlock (PCB *pcb) {
+  int i;
+  for (i = 0; i < 100; i++) {
+    if (pcb->blocks[i].inuse == 0)
+      return i;
+  }
+  return -1;
+}
+
 
 //----------------------------------------------------------------------
 //
@@ -389,7 +408,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   uint32 initial_user_params_bytes;  // total number of bytes in initial user parameters array
   int syspage;
   int userpage;
-  heapblock* firstblock;
+  int heapidx; 
 
   intrs = DisableIntrs ();
   dbprintf ('I', "Old interrupt value was 0x%x.\n", intrs);
@@ -465,11 +484,12 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     exitsim();
   }
   pcb->pagetable[i] = MemorySetupPte(pcb->pagetable[i]);
-  firstblock->vaddr = i * MEM_PAGESIZE;
-  firstblock->size = 0;
-  firstblock->inuse = 0;
-  AQueueInsertFirst(pcb->heapstart, AQueueAllocLink(firstblock));
-  dbprintf('m', "ProcessFork (%d), finished assigning heap to page table\n");
+  heapidx = GetHeapBlock(pcb);
+  pcb->blocks[heapidx].vaddr = i * MEM_PAGESIZE;
+  pcb->blocks[heapidx].size = 0;
+  pcb->blocks[heapidx].inuse = 0;
+  AQueueInsertFirst(&(pcb->heapstart), AQueueAllocLink(&(pcb->blocks[heapidx])));
+  dbprintf('m', "ProcessFork (%d), finished assigning heap to page table\n", GetCurrentPid());
 
   // Now that the stack frame points at the bottom of the system stack memory area, we need to
   // move it up (decrement it) by one stack frame size because we're about to fill in the
