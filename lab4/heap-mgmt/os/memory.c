@@ -363,7 +363,7 @@ void* malloc(PCB *pcb, int memsize) {
     dbprintf('m', "malloc (%d), allocation size is larger than the allowed size\n", GetCurrentPid());
     return NULL;
   }
-  
+   
   curr_size = 0;
   heapQueue = &(pcb->heapstart);
   l = AQueueFirst(heapQueue);
@@ -377,6 +377,8 @@ void* malloc(PCB *pcb, int memsize) {
     }
     l = AQueueNext(l);
   }
+
+  // TODO check to see if a block could be split to satisfy size
 
   if (AQueueLength(heapQueue) == 1 && flag == 0) {
     l = AQueueFirst(heapQueue);
@@ -430,7 +432,8 @@ int mfree(PCB* pcb, void* ptr) {
     dbprintf('m', "mfree (%d), address given is a null pointer\n", GetCurrentPid());
     return -1;
   }
-  
+ 
+  // TODO Check to see if two consecutive blocks are unused to free if possible 
   heapQueue = &(pcb->heapstart);
   l = AQueueFirst(heapQueue);
   while (l != NULL) {
