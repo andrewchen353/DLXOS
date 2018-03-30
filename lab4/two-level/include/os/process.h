@@ -32,12 +32,6 @@
 
 typedef	void (*VoidFunc)();
 
-// l2 pagetable
-typedef struct l2_pagetable {
-  int inuse;
-  uint32 table[MEM_L2TABLE_SIZE];
-} l2_pagetable;
-
 // Process control block
 typedef struct PCB {
   uint32	*currentSavedFrame; // -> current saved frame.  MUST BE 1ST!
@@ -45,7 +39,7 @@ typedef struct PCB {
   uint32	sysStackArea;	// System stack area for this process
   unsigned int	flags;
   char		name[80];	// Process name
-  uint32	pagetable[MEM_L1TABLE_SIZE]; // Statically allocated page table -- was pagetable[2] initially
+  uint32*	pagetable[MEM_L1TABLE_SIZE]; // Statically allocated page table -- was pagetable[2] initially
   Link		*l;		// Used for keeping PCB in queues
 } PCB;
 
