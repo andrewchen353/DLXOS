@@ -12,15 +12,11 @@
 #include "queue.h"
 
 // num_pages = size_of_memory / size_of_one_page = 2^21 / 4096 = 512
-// total_pages = (1 << 8) * 4 = 1024 --> 256 pages for each l2 pagetable and
-// 2 bits to represent num_L1_pages
-static uint32 freemap[(MEM_MAX_PAGES * 2) / 32];
-
-
+static uint32 freemap[MEM_MAX_PAGES / 32];
 
 static uint32 pagestart;
 static int nfreepages;
-//static int freemapmax;
+//static int freemapmax; 
 
 // Declaring L2 page table
 static l2_pagetable l2_num_tables[MEM_L2TABLE_SIZE];
@@ -36,10 +32,10 @@ static l2_pagetable l2_num_tables[MEM_L2TABLE_SIZE];
 //
 //----------------------------------------------------------------------
 static int negativeone = 0xFFFFFFFF;
-static inline uint32 invert (uint32 n) {
+/*static inline uint32 invert (uint32 n) {
   return (n ^ negativeone);
 }
-
+*/
 //----------------------------------------------------------------------
 //
 //	MemoryGetSize
@@ -65,7 +61,7 @@ int MemoryGetSize() {
 //----------------------------------------------------------------------
 void MemoryModuleInit() {
   int i;
-  int page_idx;  
+  int page, page_idx, page_bit;
   uint32 pagemask;
   uint32 onemask;
   uint32 l1_page;
@@ -79,17 +75,22 @@ void MemoryModuleInit() {
   pagestart = (lastosaddress >> MEM_L2FIELD_FIRST_BITNUM) + 1;
   l2_page = pagestart & 0xFF;
   l1_page = pagestart >> 8;
-  page_idx = l1_page * l2_page / 32;
+  page = (l1_page * 256) + l2_page;
+  page_idx = page/32; //TODO look over this to make sure it is in freemap array
+  page_bit = page % 32;
 
-  dbprintf('m', "MemoryModuleInit:\nlastosaddress: %x\n", lastosaddress);
+  dbprintf('m', "MemoryModuleInit:\nl astosaddress: %x\n", lastosaddress);
   dbprintf('m', "pagestart: %x\n", pagestart);
   dbprintf('m', "page_idx: %x\n", page_idx);
-
-  pagemask = 0xFFFFFFFF << ((l1_page * l2_page) - page_idx * 32);
-  onemask = 0xFFFFFFFF;
-  //printf("page_mask: %x\n", pagemask);
+  dbprintf('m', "page_bit: %x\n", page_bit);
+  dbprintf('m', "l1_page: %x\n", l1_page);
+  dbprintf('m', "l2_page: %x\n", l2_page);
   
-  for(i = 0; i < 256; i++)
+  pagemask = 0xFFFFFFFF << page_bit;
+  onemask = 0xFFFFFFFF;
+  dbprintf('m', "page_mask: %x\n", pagemask);
+  
+  for(i = 0; i < MEM_L2TABLE_SIZE; i++)
     l2_num_tables[i].inuse = 0;
 
   for(i = MEM_MAX_PAGES / 32 - 1; i >= 0; i--)
@@ -102,7 +103,7 @@ void MemoryModuleInit() {
 
   freemap[page_idx] = pagemask;
 
-  nfreepages = MEM_MAX_PAGES - (l1_page * l2_page) + 1;
+  nfreepages = MEM_MAX_PAGES - page; //FIXME
   dbprintf('m', "nfreepages: %x\n", nfreepages);
   dbprintf('m', "Leaving MemoryModuleInit (%d)\n", GetCurrentPid());
   return; //TODO check to make sure it works*/
@@ -118,7 +119,6 @@ void MemoryModuleInit() {
 //
 //----------------------------------------------------------------------
 uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
-  uint32 page_num;
   uint32 offset;
   uint32 entry;
   uint32 phys_addr;
@@ -134,10 +134,10 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
 
   l1_pagenum = addr >> MEM_L1FIELD_FIRST_BITNUM; 
   l2_pagenum = (addr >> MEM_L2FIELD_FIRST_BITNUM) & 0xFF;
-
   offset = (addr & 0x00000FFF);
   //entry = ((uint32*)pcb->pagetable[l1_pagenum])[l2_pagenum];
-  entry = ((l2_pagetable *)pcb->pagetable[l1_pagenum]).table[l2_pagenum]; //FIXME
+  entry = ((l2_pagetable *)pcb->pagetable[l1_pagenum])->table[l2_pagenum]; //FIXME
+  //entry = *(pcb->pagetable[l1_pagenum] + l2_pagenum);
 
   dbprintf('m', "addr: %x\n", addr);
   dbprintf('m', "l1_pagenum: %x\n", l1_pagenum);
@@ -263,9 +263,14 @@ int MemoryPageFaultHandler(PCB *pcb) {
 
   uint32 addr = pcb->currentSavedFrame[PROCESS_STACK_FAULT];
   uint32 userstackaddr = pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER];
-  uint32 vpagenum = addr >> MEM_L1FIELD_FIRST_BITNUM;
-  uint32 stackpagenum = userstackaddr >> MEM_L1FIELD_FIRST_BITNUM;
+  uint32 vl1_pagenum = addr >> MEM_L1FIELD_FIRST_BITNUM;
+  uint32 vl2_pagenum = (addr >> MEM_L2FIELD_FIRST_BITNUM) & 0xFF;
+  uint32 vpagenum = vl1_pagenum * 256 + vl2_pagenum;
+  uint32 sl1_pagenum = userstackaddr >> MEM_L1FIELD_FIRST_BITNUM;
+  uint32 sl2_pagenum = (userstackaddr >> MEM_L2FIELD_FIRST_BITNUM) & 0xFF;
+  uint32 stackpagenum = sl1_pagenum * 256 + sl2_pagenum;
   uint32 ppagenum;
+  uint32* l2entry;
 
   dbprintf('m', "\nEntering MemoryPageFaultHandler (%d)\n", GetCurrentPid());
   dbprintf('m', "Number of free pages = %u\n", nfreepages);
@@ -280,7 +285,10 @@ int MemoryPageFaultHandler(PCB *pcb) {
   }
 
   ppagenum = MemoryAllocPage();
-  pcb->pagetable[vpagenum] = MemorySetupPte(ppagenum);
+  //l2entry = pcb->pagetable[vl1_pagenum] + vl2_pagenum;
+  //*l2entry = MemorySetupPte(ppagenum);
+  ((l2_pagetable *)pcb->pagetable[vl1_pagenum])->table[vl2_pagenum] = MemorySetupPte(ppagenum);  
+  l2_num_tables[vl2_pagenum].inuse = 1;
   dbprintf('m', "Returning from page fault handler\n");
   dbprintf('m', "Leaving MemoryPageFaultHandler (%d)\n", GetCurrentPid());
   return MEM_SUCCESS;
@@ -291,7 +299,6 @@ int MemoryPageFaultHandler(PCB *pcb) {
 // You may need to implement the following functions and access them from process.c
 // Feel free to edit/remove them
 //---------------------------------------------------------------------
-// FIXME set MEM_PTE_VALID to 1?????????????????????????????????????????????????????????????
 int MemoryAllocPage(void) {
   int i, j;
   uint32 page_idx;
@@ -303,7 +310,7 @@ int MemoryAllocPage(void) {
 
   if(!nfreepages) return 0;
   
-  for (i = 0; i < MEM_MAX_PAGES; i++) {
+  for (i = 0; i < MEM_MAX_PAGES / 32; i++) {
     page_bunch = freemap[i];
     if (page_bunch) {
       page_idx = i;
@@ -331,9 +338,12 @@ int MemoryAllocPage(void) {
   dbprintf('m', "freemap[%d] after: %x\n", page_idx, freemap[page_idx]);
 
   virtual_page = page_idx * 32 + page_bit;
+  l2_num_tables[virtual_page].inuse = 1;
+  
   dbprintf('m', "virtual_page: %d\n", virtual_page);
   dbprintf('m', "Leaving MemoryAlloc (%d)", GetCurrentPid());
-  if (virtual_page > MEM_L1TABLE_SIZE)
+  
+  if (virtual_page > MEM_L2TABLE_SIZE * 2) // using only 2 L2 pagetables
     return MEM_FAIL;
   else
     return virtual_page;

@@ -56,7 +56,7 @@ void main (int argc, char *argv[])
   Printf("-------------------------------------------------------------------------------------\n");
   */
 
-  Printf("\n-------------------------------------Part3-------------------------------------------\n");
+  /*Printf("\n-------------------------------------Part3-------------------------------------------\n");
   process_create(PART3, s_procs_completed_str, NULL);
   if (sem_wait(s_procs_completed) != SYNC_SUCCESS) {
     Printf("Bad semaphore s_procs_completed (%d) in %s\n", s_procs_completed, argv[0]);
@@ -101,7 +101,7 @@ void main (int argc, char *argv[])
     Exit();
   }
   Printf("-------------------------------------------------------------------------------------\n");
-
+*/
 /*  
   // Uncomment this section to run part 6
   Printf("\n-------------------------------------Part6-------------------------------------------\n");
