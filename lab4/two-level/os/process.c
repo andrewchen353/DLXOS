@@ -451,7 +451,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // Assign 4 pages
   for(i = 0; i < 4; i++) {
     if ((((l2_pagetable *)(pcb->pagetable[0]))->table[i] = MemoryAllocPage()) == MEM_FAIL) {
-      printf("FATAL ERROR: memroy not allocated\n");
+      printf("FATAL ERROR: memory not allocated\n");
       exitsim();
     }
     ((l2_pagetable *)(pcb->pagetable[0]))->table[i] = MemorySetupPte(((l2_pagetable *)(pcb->pagetable[0]))->table[i]);
