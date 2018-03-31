@@ -19,7 +19,7 @@ static int nfreepages;
 //static int freemapmax; 
 
 // Declaring L2 page table
-static l2_pagetable l2_num_tables[MEM_L2TABLE_SIZE];
+static l2_pagetable l2_num_tables[MEM_L2TABLE_SIZE]; // TODO this should be MEM_L1TABLE_SIZE (2) because l2 table size references to the array inside the structure
 
 //----------------------------------------------------------------------
 //
@@ -338,7 +338,7 @@ int MemoryAllocPage(void) {
   dbprintf('m', "freemap[%d] after: %x\n", page_idx, freemap[page_idx]);
 
   virtual_page = page_idx * 32 + page_bit;
-  l2_num_tables[virtual_page].inuse = 1;
+  l2_num_tables[virtual_page].inuse = 1;  // TODO virtual page could be a number between 0 and 512? This doesnt make sense if we have only two l2_page tables.
   
   dbprintf('m', "virtual_page: %d\n", virtual_page);
   dbprintf('m', "Leaving MemoryAlloc (%d)", GetCurrentPid());
@@ -366,7 +366,7 @@ void MemoryFreePage(uint32 page) {
   dbprintf('m', "Leave MemoryFreePage (%d)\n", GetCurrentPid());
   nfreepages++;
 
-  l2_num_tables[page].inuse = 0;
+  l2_num_tables[page].inuse = 0; // TODO doesn't make sense for the same reason as above
 }
 
 int malloc() {

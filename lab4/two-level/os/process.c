@@ -88,7 +88,7 @@ void ProcessModuleInit () {
     //-------------------------------------------------------
     for (j = 0; j < MEM_L1TABLE_SIZE; j++)
       for (k = 0; k < MEM_L2TABLE_SIZE; k++)
-        ((l2_pagetable *)(pcbs[i].pagetable[j]))->table[k] = 0;
+        ((l2_pagetable *)(pcbs[i].pagetable[j]))->table[k] = 0; //TODO does this make sense? I don't think the l1 table entries are pointing to anything when initializing them. May want to initialize the l2 tables else where.
     
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
@@ -487,8 +487,8 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // stack frame.
   //----------------------------------------------------------------------
   stackframe[PROCESS_STACK_PTBASE] = pcb->pagetable;
-  stackframe[PROCESS_STACK_PTSIZE] = MEM_L1TABLE_SIZE; 
-  stackframe[PROCESS_STACK_PTBITS] = (MEM_L1FIELD_FIRST_BITNUM | MEM_L2FIELD_FIRST_BITNUM << 16);
+  stackframe[PROCESS_STACK_PTSIZE] = 2; //MEM_L1TABLE_SIZE; 
+  stackframe[PROCESS_STACK_PTBITS] = (MEM_L1FIELD_FIRST_BITNUM | MEM_L2FIELD_FIRST_BITNUM << 16); // TODO don't know enough about this to comment on it.
 
   if (isUser) {
     dbprintf ('p', "About to load %s\n", name);
