@@ -146,7 +146,7 @@ void ProcessFreeResources (PCB *pcb) {
   //------------------------------------------------------------
   for (i = 0; i < MEM_L1TABLE_SIZE; i++) {
     for (j = 0; j < MEM_L2TABLE_SIZE; j++) 
-      if (((l2_pagetable *)pcb->pagetable[i])->table[j] & 0x1)
+      if (((uint32 *)pcb->pagetable[i])[j] & 0x1)
         MemoryFreePage(((uint32 *)pcb->pagetable[i])[j] >> MEM_L2FIELD_FIRST_BITNUM);
   }
   MemoryFreePage(pcb->sysStackArea / MEM_PAGESIZE);
