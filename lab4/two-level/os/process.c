@@ -65,7 +65,7 @@ uint32 get_argument(char *string);
 //
 //----------------------------------------------------------------------
 void ProcessModuleInit () {
-  int	i, j, k;
+  int	i, j;
 
   dbprintf ('p', "Entering ProcessModuleInit\n");
   AQueueInit (&freepcbs);
@@ -86,9 +86,12 @@ void ProcessModuleInit () {
     //-------------------------------------------------------
     // STUDENT: Initialize the PCB's page table here.
     //-------------------------------------------------------
-    for (j = 0; j < MEM_L1TABLE_SIZE; j++)
+    /*for (j = 0; j < MEM_L1TABLE_SIZE; j++)
       for (k = 0; k < MEM_L2TABLE_SIZE; k++)
-        ((l2_pagetable *)(pcbs[i].pagetable[j]))->table[k] = 0; //TODO does this make sense? I don't think the l1 table entries are pointing to anything when initializing them. May want to initialize the l2 tables else where.
+        ((l2_pagetable *)(pcbs[i].pagetable[j]))->table[k] = 0; //TODO does this make sense? I don't think the l1 table entries are pointing to anything when initializing them. May want to initialize the l2 tables else where.*/
+  
+    for (j = 0; j < MEM_L1TABLE_SIZE; j++)
+      pcbs[i].pagetable[j] = NULL;
     
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
@@ -144,7 +147,7 @@ void ProcessFreeResources (PCB *pcb) {
   for (i = 0; i < MEM_L1TABLE_SIZE; i++) {
     for (j = 0; j < MEM_L2TABLE_SIZE; j++) 
       if (((l2_pagetable *)pcb->pagetable[i])->table[j] & 0x1)
-        MemoryFreePage(((l2_pagetable *)pcb->pagetable[i])->table[j] >> MEM_L2FIELD_FIRST_BITNUM);
+        MemoryFreePage(((uint32 *)pcb->pagetable[i])[j] >> MEM_L2FIELD_FIRST_BITNUM);
   }
   MemoryFreePage(pcb->sysStackArea / MEM_PAGESIZE);
 
@@ -429,6 +432,8 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // equal to the last 4-byte-aligned address in physical page
   // for the system stack.
   //---------------------------------------------------------
+  for (i = 0; i < MEM_L1TABLE_SIZE; i++)
+    pcb->pagetable[i] = GetAddressL2();
 
   // System stack
   dbprintf('m', "\n-----Process Fork-----\n");
@@ -445,16 +450,16 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     printf("FATAL ERROR: memory not allocated\n");
     exitsim();
   }
-  ((l2_pagetable *)pcb->pagetable[1])->table[MEM_L2TABLE_SIZE - 1] = MemorySetupPte(userpage);
+  ((uint32 *)pcb->pagetable[3])[MEM_L2TABLE_SIZE - 1] = MemorySetupPte(userpage);
   dbprintf('m', "user stack done\n");
   
   // Assign 4 pages
   for(i = 0; i < 4; i++) {
-    if ((((l2_pagetable *)(pcb->pagetable[0]))->table[i] = MemoryAllocPage()) == MEM_FAIL) {
+    if ((((uint32 *)pcb->pagetable[0])[i] = MemoryAllocPage()) == MEM_FAIL) {
       printf("FATAL ERROR: memory not allocated\n");
-      exitsim();
+      exitsim(); // TODO Another question.. each process has its own page tables, so how should the page tables be handled.
     }
-    ((l2_pagetable *)(pcb->pagetable[0]))->table[i] = MemorySetupPte(((l2_pagetable *)(pcb->pagetable[0]))->table[i]);
+    ((uint32 *)pcb->pagetable[0])[i] = MemorySetupPte(((uint32 *)pcb->pagetable[0])[i]);
   }
   dbprintf('m', "assign 4 pages done\n");
 
@@ -487,8 +492,9 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // stack frame.
   //----------------------------------------------------------------------
   stackframe[PROCESS_STACK_PTBASE] = pcb->pagetable;
-  stackframe[PROCESS_STACK_PTSIZE] = 2; //MEM_L1TABLE_SIZE; 
-  stackframe[PROCESS_STACK_PTBITS] = (MEM_L1FIELD_FIRST_BITNUM | MEM_L2FIELD_FIRST_BITNUM << 16); // TODO don't know enough about this to comment on it.
+  dbprintf('m', "----------------------------------------%x\t%x\n", stackframe[PROCESS_STACK_PTBASE], (uint32*)pcb->pagetable);
+  stackframe[PROCESS_STACK_PTSIZE] = MEM_L1TABLE_SIZE; // 2 
+  stackframe[PROCESS_STACK_PTBITS] = ((MEM_L2FIELD_FIRST_BITNUM << 16) | MEM_L1FIELD_FIRST_BITNUM); // TODO don't know enough about this to comment on it.
 
   if (isUser) {
     dbprintf ('p', "About to load %s\n", name);

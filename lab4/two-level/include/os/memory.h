@@ -36,4 +36,6 @@ int mfree();
 //void* malloc(int memsize);
 //int mfree(void* ptr);
 
+uint32 *GetAddressL2();
+
 #endif	// _memory_h_

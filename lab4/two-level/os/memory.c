@@ -60,7 +60,7 @@ int MemoryGetSize() {
 //
 //----------------------------------------------------------------------
 void MemoryModuleInit() {
-  int i;
+  int i, j;
   int page, page_idx, page_bit;
   uint32 pagemask;
   uint32 onemask;
@@ -68,6 +68,10 @@ void MemoryModuleInit() {
   uint32 l2_page;
 
   dbprintf('m', "\nEnter MemoryModuleInit (%u)\n", GetCurrentPid());
+
+  for (i = 0; i < MEM_L1TABLE_SIZE; i++)
+    for (j = 0; j < MEM_L2TABLE_SIZE; j++)
+      l2_num_tables[i].table[j] = 0;
   
   //**important
   // L1_pagenum * L2_pagenum / 32 = page index
@@ -131,18 +135,17 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
     ProcessKill();
     return MEM_FAIL;
   }
-
-  l1_pagenum = addr >> MEM_L1FIELD_FIRST_BITNUM; 
+  l1_pagenum = (addr >> MEM_L1FIELD_FIRST_BITNUM) & 3; 
   l2_pagenum = (addr >> MEM_L2FIELD_FIRST_BITNUM) & 0xFF;
   offset = (addr & 0x00000FFF);
-  //entry = ((uint32*)pcb->pagetable[l1_pagenum])[l2_pagenum];
-  entry = ((l2_pagetable *)pcb->pagetable[l1_pagenum])->table[l2_pagenum]; //FIXME
-  //entry = *(pcb->pagetable[l1_pagenum] + l2_pagenum);
-
   dbprintf('m', "addr: %x\n", addr);
   dbprintf('m', "l1_pagenum: %x\n", l1_pagenum);
   dbprintf('m', "l2_pagenum: %x\n", l2_pagenum);
   dbprintf('m', "offset: %x\n", offset);
+
+  entry = ((uint32 *)pcb->pagetable[l1_pagenum])[l2_pagenum]; //FIXME
+  //entry = *(pcb->pagetable[l1_pagenum] + l2_pagenum);
+
   dbprintf('m', "entry: %x\n", entry);
 
   if (!(entry & MEM_PTE_VALID))
@@ -262,13 +265,15 @@ int MemoryCopyUserToSystem (PCB *pcb, unsigned char *from,unsigned char *to, int
 int MemoryPageFaultHandler(PCB *pcb) {
 
   uint32 addr = pcb->currentSavedFrame[PROCESS_STACK_FAULT];
-  uint32 userstackaddr = pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER];
-  uint32 vl1_pagenum = addr >> MEM_L1FIELD_FIRST_BITNUM;
+  uint32 vl1_pagenum = (addr >> MEM_L1FIELD_FIRST_BITNUM) & 3;
   uint32 vl2_pagenum = (addr >> MEM_L2FIELD_FIRST_BITNUM) & 0xFF;
   uint32 vpagenum = vl1_pagenum * 256 + vl2_pagenum;
-  uint32 sl1_pagenum = userstackaddr >> MEM_L1FIELD_FIRST_BITNUM;
+
+  uint32 userstackaddr = pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER];
+  uint32 sl1_pagenum = (userstackaddr >> MEM_L1FIELD_FIRST_BITNUM) & 3;
   uint32 sl2_pagenum = (userstackaddr >> MEM_L2FIELD_FIRST_BITNUM) & 0xFF;
   uint32 stackpagenum = sl1_pagenum * 256 + sl2_pagenum;
+
   uint32 ppagenum;
   uint32* l2entry;
 
@@ -278,6 +283,8 @@ int MemoryPageFaultHandler(PCB *pcb) {
   /* // segfault if the faulting address is not part of the stack */
   if (vpagenum < stackpagenum) {
     dbprintf('m', "addr = %x\nsp = %x\n", addr, pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]);
+    dbprintf('m', "vl1_pagenum: %x\tvl2_pagenum: %x\n", vl1_pagenum, vl2_pagenum);
+    dbprintf('m', "sl1_pagenum: %x\tsl2_pagenum: %x\n", sl1_pagenum, sl2_pagenum);
     printf("vpagenum = %x, stackpagenum = %x \n", vpagenum, stackpagenum);
     printf("FATAL ERROR (%d): segmentation fault at page address %x\n", GetPidFromAddress(pcb), addr);
     ProcessKill();
@@ -287,8 +294,8 @@ int MemoryPageFaultHandler(PCB *pcb) {
   ppagenum = MemoryAllocPage();
   //l2entry = pcb->pagetable[vl1_pagenum] + vl2_pagenum;
   //*l2entry = MemorySetupPte(ppagenum);
-  ((l2_pagetable *)pcb->pagetable[vl1_pagenum])->table[vl2_pagenum] = MemorySetupPte(ppagenum);  
-  l2_num_tables[vl2_pagenum].inuse = 1;
+  ((uint32 *)pcb->pagetable[vl1_pagenum])[vl2_pagenum] = MemorySetupPte(ppagenum);  
+  //l2_num_tables[vl2_pagenum].inuse = 1;
   dbprintf('m', "Returning from page fault handler\n");
   dbprintf('m', "Leaving MemoryPageFaultHandler (%d)\n", GetCurrentPid());
   return MEM_SUCCESS;
@@ -338,7 +345,8 @@ int MemoryAllocPage(void) {
   dbprintf('m', "freemap[%d] after: %x\n", page_idx, freemap[page_idx]);
 
   virtual_page = page_idx * 32 + page_bit;
-  l2_num_tables[virtual_page].inuse = 1;  // TODO virtual page could be a number between 0 and 512? This doesnt make sense if we have only two l2_page tables.
+  //l2_num_tables[virtual_page / (MEM_L1TABLE_SIZE * MEM_L2TABLE_SIZE)].inuse = 1;
+  //l2_num_tables[virtual_page].inuse = 1;  // TODO virtual page could be a number between 0 and 512? This doesnt make sense if we have only two l2_page tables.
   
   dbprintf('m', "virtual_page: %d\n", virtual_page);
   dbprintf('m', "Leaving MemoryAlloc (%d)", GetCurrentPid());
@@ -366,7 +374,8 @@ void MemoryFreePage(uint32 page) {
   dbprintf('m', "Leave MemoryFreePage (%d)\n", GetCurrentPid());
   nfreepages++;
 
-  l2_num_tables[page].inuse = 0; // TODO doesn't make sense for the same reason as above
+  //l2_num_tables[page / (MEM_L1TABLE_SIZE * MEM_L2TABLE_SIZE)].inuse = 0;
+  //l2_num_tables[page].inuse = 0; // TODO doesn't make sense for the same reason as above
 }
 
 int malloc() {
@@ -378,4 +387,15 @@ int malloc() {
 int mfree() {
 //int mfree(void* ptr) {
   return 0;
+}
+
+uint32 *GetAddressL2() {
+  int i;
+  for (i = 0; i < MEM_L2TABLE_SIZE; i++){
+    if (l2_num_tables[i].inuse = 0) {
+      l2_num_tables[i].inuse = 1;
+      return (l2_num_tables[i].table);
+    }
+  }
+  return NULL;
 }
