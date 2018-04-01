@@ -407,7 +407,7 @@ void* malloc(PCB *pcb, int memsize) {
     l = AQueueFirst(heapQueue);
     block = (heapblock *)AQueueObject(l);
     start_addr = block->vaddr;
-    if (block->inuse == 0) {
+    if (block->inuse == 0 && block->size == 0) {
       block->size = size_to_alloc;
       block->inuse = 1;
       return_addr = block->vaddr;
