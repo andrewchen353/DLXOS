@@ -23,5 +23,5 @@ runm:
 runmp:
 	cd ../../bin; dlxsim -D mp -x os.dlx.obj -a -D mp -u makeprocs.dlx.obj 5; ee469_fixterminal
 
-runtm:
-	cd ../../bin; dlxsim -D tm -x os.dlx.obj -a -D tm -u makeprocs.dlx.obj 5; ee469_fixterminal
+runt:
+	cd ../../bin; dlxsim -D t -x os.dlx.obj -a -D t -u makeprocs.dlx.obj 5; ee469_fixterminal

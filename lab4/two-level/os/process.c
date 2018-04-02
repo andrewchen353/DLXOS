@@ -86,13 +86,9 @@ void ProcessModuleInit () {
     //-------------------------------------------------------
     // STUDENT: Initialize the PCB's page table here.
     //-------------------------------------------------------
-    /*for (j = 0; j < MEM_L1TABLE_SIZE; j++)
-      for (k = 0; k < MEM_L2TABLE_SIZE; k++)
-        ((l2_pagetable *)(pcbs[i].pagetable[j]))->table[k] = 0; //TODO does this make sense? I don't think the l1 table entries are pointing to anything when initializing them. May want to initialize the l2 tables else where.*/
-  
     for (j = 0; j < MEM_L1TABLE_SIZE; j++)
       pcbs[i].pagetable[j] = NULL;
-    
+
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
       printf("FATAL ERROR: could not insert PCB link into queue in ProcessModuleInit!\n");
@@ -127,6 +123,7 @@ void ProcessSetStatus (PCB *pcb, int status) {
 void ProcessFreeResources (PCB *pcb) {
   int i, j;
   int userstack_page = pcb->sysStackPtr[PROCESS_STACK_USER_STACKPOINTER] >> MEM_L1FIELD_FIRST_BITNUM;
+  int* temp;
 
   // Allocate a new link for this pcb on the freepcbs queue
   if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
@@ -145,10 +142,13 @@ void ProcessFreeResources (PCB *pcb) {
   // STUDENT: Free any memory resources on process death here.
   //------------------------------------------------------------
   for (i = 0; i < MEM_L1TABLE_SIZE; i++) {
-    for (j = 0; j < MEM_L2TABLE_SIZE; j++) 
-      if (((uint32 *)pcb->pagetable[i])[j] & 0x1)
-        MemoryFreePage(((uint32 *)pcb->pagetable[i])[j] >> MEM_L2FIELD_FIRST_BITNUM);
+    for (j = 0; j < MEM_L2TABLE_SIZE; j++) {
+      if (((uint32*)pcb->pagetable[i])[j] & 0x1)
+        MemoryFreePage(((uint32*)pcb->pagetable[i])[j] >> MEM_L2FIELD_FIRST_BITNUM);
+      pcb->pagetable[i] = NULL;
+    }
   }
+
   MemoryFreePage(pcb->sysStackArea / MEM_PAGESIZE);
 
   pcb->sysStackArea = 0;
@@ -172,7 +172,6 @@ void ProcessSetResult (PCB * pcb, uint32 result) {
   pcb->currentSavedFrame[PROCESS_STACK_IREG+1] = result;
 }
 
-
 //----------------------------------------------------------------------
 //
 //	ProcessSchedule
@@ -432,8 +431,11 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // equal to the last 4-byte-aligned address in physical page
   // for the system stack.
   //---------------------------------------------------------
-  for (i = 0; i < MEM_L1TABLE_SIZE; i++)
-    pcb->pagetable[i] = GetAddressL2();
+
+  pcb->pagetable[0] = GetAddressL2();
+  pcb->pagetable[1] = GetAddressL2();
+  pcb->pagetable[2] = GetAddressL2();
+  pcb->pagetable[3] = GetAddressL2();
 
   // System stack
   dbprintf('m', "\n-----Process Fork-----\n");
@@ -450,16 +452,16 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     printf("FATAL ERROR: memory not allocated\n");
     exitsim();
   }
-  ((uint32 *)pcb->pagetable[3])[MEM_L2TABLE_SIZE - 1] = MemorySetupPte(userpage);
+  ((uint32*)pcb->pagetable[3])[MEM_L2TABLE_SIZE - 1] = MemorySetupPte(userpage);
   dbprintf('m', "user stack done\n");
   
   // Assign 4 pages
   for(i = 0; i < 4; i++) {
-    if ((((uint32 *)pcb->pagetable[0])[i] = MemoryAllocPage()) == MEM_FAIL) {
-      printf("FATAL ERROR: memory not allocated\n");
-      exitsim(); // TODO Another question.. each process has its own page tables, so how should the page tables be handled.
+    if ((((uint32*)pcb->pagetable[0])[i] = MemoryAllocPage()) == MEM_FAIL) {
+      printf("FATAL ERROR: memroy not allocated\n");
+      exitsim();
     }
-    ((uint32 *)pcb->pagetable[0])[i] = MemorySetupPte(((uint32 *)pcb->pagetable[0])[i]);
+    ((uint32*)pcb->pagetable[0])[i] = MemorySetupPte(((uint32*)pcb->pagetable[0])[i]);
   }
   dbprintf('m', "assign 4 pages done\n");
 
@@ -491,10 +493,9 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // STUDENT: setup the PTBASE, PTBITS, and PTSIZE here on the current
   // stack frame.
   //----------------------------------------------------------------------
-  stackframe[PROCESS_STACK_PTBASE] = pcb->pagetable;
-  dbprintf('m', "----------------------------------------%x\t%x\n", stackframe[PROCESS_STACK_PTBASE], (uint32*)pcb->pagetable);
-  stackframe[PROCESS_STACK_PTSIZE] = MEM_L1TABLE_SIZE; // 2 
-  stackframe[PROCESS_STACK_PTBITS] = ((MEM_L2FIELD_FIRST_BITNUM << 16) | MEM_L1FIELD_FIRST_BITNUM); // TODO don't know enough about this to comment on it.
+  stackframe[PROCESS_STACK_PTBASE] = pcb->pagetable;  
+  stackframe[PROCESS_STACK_PTSIZE] = MEM_L1TABLE_SIZE;
+  stackframe[PROCESS_STACK_PTBITS] = (uint32)(MEM_L1FIELD_FIRST_BITNUM | MEM_L2FIELD_FIRST_BITNUM << 16);
 
   if (isUser) {
     dbprintf ('p', "About to load %s\n", name);
