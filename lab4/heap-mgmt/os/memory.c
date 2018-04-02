@@ -407,11 +407,11 @@ void* malloc(PCB *pcb, int memsize) {
     l = AQueueFirst(heapQueue);
     block = (heapblock *)AQueueObject(l);
     start_addr = block->vaddr;
-    if (block->inuse == 0 && block->size == 0) {
+    if (block->inuse == 0) {
       block->size = size_to_alloc;
       block->inuse = 1;
       return_addr = block->vaddr;
-    } else {
+    } else if (block->size + size_to_alloc <= MEM_PAGESIZE) {
       next = GetHeapBlock(pcb);
       curr_size += block->size;
       pcb->blocks[next].vaddr = start_addr + curr_size;
@@ -442,11 +442,11 @@ void* malloc(PCB *pcb, int memsize) {
 
   l = AQueueFirst(heapQueue);
   while (l != NULL) {
-    dbprintf('m', "malloc (%d), Contents of heapQueue: Block address = %d, block size = %d, inuse = %d, available = %d\n", GetCurrentPid(), ((heapblock *)AQueueObject(l))->vaddr, ((heapblock *)AQueueObject(l))->size, ((heapblock *)AQueueObject(l))->inuse, ((heapblock *)AQueueObject(l))->available);
+    dbprintf('m',"malloc (%d), Contents of heapQueue: Block address = %d, block size = %d, inuse = %d, available = %d\n", GetCurrentPid(), ((heapblock *)AQueueObject(l))->vaddr, ((heapblock *)AQueueObject(l))->size, ((heapblock *)AQueueObject(l))->inuse, ((heapblock *)AQueueObject(l))->available);
     l = AQueueNext(l);
   } 
 
-  printf("Created a heap block of size %d bytes: virtual address %d, physical address %d.\n", memsize, return_addr, MemoryTranslateUserToSystem(pcb, return_addr));
+  printf("Created a heap block of size %d bytes: virtual address %d, physical address %d.\n", size_to_alloc, return_addr, MemoryTranslateUserToSystem(pcb, return_addr));
   return return_addr;
 }
 
@@ -505,7 +505,7 @@ int mfree(PCB* pcb, void* ptr) {
 
   l = AQueueFirst(heapQueue);
   while (l != NULL) {
-    dbprintf('m', "mfree (%d), Contents of heapQueue: Block address = %d, block size = %d, inuse = %d, available = %d\n", GetCurrentPid(), ((heapblock *)AQueueObject(l))->vaddr, ((heapblock *)AQueueObject(l))->size, ((heapblock *)AQueueObject(l))->inuse, ((heapblock *)AQueueObject(l))->available);
+    dbprintf('m',"mfree (%d), Contents of heapQueue: Block address = %d, block size = %d, inuse = %d, available = %d\n", GetCurrentPid(), ((heapblock *)AQueueObject(l))->vaddr, ((heapblock *)AQueueObject(l))->size, ((heapblock *)AQueueObject(l))->inuse, ((heapblock *)AQueueObject(l))->available);
     l = AQueueNext(l);
   }
 
