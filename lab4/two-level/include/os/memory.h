@@ -31,11 +31,11 @@ int MemoryPageFaultHandler(PCB *pcb);
 int MemoryAllocPage(void);
 uint32 MemorySetupPte(uint32 page);
 void MemoryFreePage(uint32 page);
+uint32* GetAddressL2();
+void checkAllocatel2pt(PCB* pcb, uint32 l1_page);
 int malloc();
 int mfree();
 //void* malloc(int memsize);
 //int mfree(void* ptr);
-
-uint32 *GetAddressL2();
 
 #endif	// _memory_h_
