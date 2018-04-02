@@ -1,0 +1,30 @@
+LAB4
+
+Q1:
+  To run the tests do the following:
+    in the os directory: 
+      make clean; make
+    in apps/example:
+      make clean; make; make run
+    in apps/example-paging
+      make clean; make; make run
+
+Q2:
+  The tests are located in apps/example
+  Tests 2 and 6 are commented out in makeprocs since they will be raising errors
+  To check these test cases just uncomment the area's corresponding to the tests
+
+Q3:
+  We are getting a seg fault in MemoryPageFaultHandler
+  We believe that the address that is received from the stack is causing this issue
+
+Q4:
+  To run the tests do the following:
+    in the os directory: 
+      make clean; make
+    in apps/heaptest-bestfit:
+      make clean; make; make run
+
+  I also wrote additional test cases to check Q4. These can be found in the file 
+  additionaltests.c which is in the same directory as the heaptest.c.
+
