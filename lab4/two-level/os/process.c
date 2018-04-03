@@ -123,7 +123,6 @@ void ProcessSetStatus (PCB *pcb, int status) {
 void ProcessFreeResources (PCB *pcb) {
   int i, j;
   int userstack_page = pcb->sysStackPtr[PROCESS_STACK_USER_STACKPOINTER] >> MEM_L1FIELD_FIRST_BITNUM;
-  int* temp;
 
   // Allocate a new link for this pcb on the freepcbs queue
   if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
@@ -452,7 +451,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     printf("FATAL ERROR: memory not allocated\n");
     exitsim();
   }
-  ((uint32*)pcb->pagetable[3])[MEM_L2TABLE_SIZE - 1] = MemorySetupPte(userpage);
+  ((uint32*)pcb->pagetable[1])[MEM_L2TABLE_SIZE - 1] = MemorySetupPte(userpage);
   dbprintf('m', "user stack done\n");
   
   // Assign 4 pages
@@ -495,7 +494,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   //----------------------------------------------------------------------
   stackframe[PROCESS_STACK_PTBASE] = pcb->pagetable;  
   stackframe[PROCESS_STACK_PTSIZE] = MEM_L1TABLE_SIZE;
-  stackframe[PROCESS_STACK_PTBITS] = (uint32)(MEM_L1FIELD_FIRST_BITNUM | MEM_L2FIELD_FIRST_BITNUM << 16);
+  stackframe[PROCESS_STACK_PTBITS] = (uint32)(MEM_L1FIELD_FIRST_BITNUM | (MEM_L2FIELD_FIRST_BITNUM << 16));
 
   if (isUser) {
     dbprintf ('p', "About to load %s\n", name);
@@ -941,6 +940,7 @@ void main (int argc, char *argv[])
   ClkStart();
   dbprintf ('i', "Set timer quantum to %d, about to run first process.\n",
 	    processQuantum);
+  
   intrreturn ();
   // Should never be called because the scheduler exits when there
   // are no runnable processes left.

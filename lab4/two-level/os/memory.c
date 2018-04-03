@@ -260,11 +260,13 @@ int MemoryPageFaultHandler(PCB *pcb) {
   dbprintf('m', "\nEntering MemoryPageFaultHandler (%d)\n", GetCurrentPid());
   dbprintf('m', "Number of free pages = %u\n", nfreepages);
 
+  dbprintf('m', "entry in page table: 0x%x\n", ((uint32*)pcb->pagetable[0])[0]);
+
   /* // segfault if the faulting address is not part of the stack */
   if (vpagenum < stackpagenum) {
-    dbprintf('m', "addr = %x\nsp = %x\n", addr, pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]);
-    printf("vpagenum = %x, stackpagenum = %x \n", vpagenum, stackpagenum);
-    printf("FATAL ERROR (%d): segmentation fault at page address %x\n", GetPidFromAddress(pcb), addr);
+    dbprintf('m', "addr = 0x%x\nsp = 0x%x\n", addr, pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]);
+    printf("vpagenum = 0x%x, stackpagenum = 0x%x \n", vpagenum, stackpagenum);
+    printf("FATAL ERROR (%d): segmentation fault at page address 0x%x\n", GetPidFromAddress(pcb), addr);
     ProcessKill();
     return MEM_FAIL;
   }
@@ -361,7 +363,7 @@ int mfree() {
 uint32 *GetAddressL2() {
   int i;
   for (i = 0; i < MEM_L2TABLE_SIZE; i++){
-    if (l2_num_tables[i].inuse = 0) {
+    if (l2_num_tables[i].inuse == 0) {
       (l2_num_tables[i]).inuse = 1;
       return (l2_num_tables[i].table);
     }
