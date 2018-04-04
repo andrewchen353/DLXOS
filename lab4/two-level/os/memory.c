@@ -275,7 +275,6 @@ int MemoryPageFaultHandler(PCB *pcb) {
   ppagenum = MemoryAllocPage();
   if (ppagenum == MEM_FAIL)
     return MEM_FAIL;
-  //checkAllocatel2pt(pcb, vl1_pagenum);
   ((uint32*)pcb->pagetable[vl1_pagenum])[vl2_pagenum] = MemorySetupPte(ppagenum);
   dbprintf('m', "Returning from page fault handler\n");
   dbprintf('m', "Leaving MemoryPageFaultHandler (%d)\n", GetCurrentPid());
@@ -370,13 +369,6 @@ uint32 *GetAddressL2() {
   }
   return NULL;
 }
-
-/*
-void checkAllocatel2pt(PCB *pcb, uint32 l1_page) {
-  if (((uint32*)pcb->pagetable[l1_page]) == NULL)
-    pcb->pagetable[l1_page] = GetAddressL2();
-}
-*/
 
 void ResetPTInUse(PCB* pcb) {
   int i, j, k;

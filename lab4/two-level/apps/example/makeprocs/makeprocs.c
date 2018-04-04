@@ -45,8 +45,7 @@ void main (int argc, char *argv[])
   }
   Printf("-------------------------------------------------------------------------------------\n");
 
-  /*
-  // Uncomment this section to run part 2
+  // Comment this section to not run part 2
   Printf("\n-------------------------------------Part2-------------------------------------------\n");
   // Create semaphore to not exit this process until all other processes
   // have signalled that they are complete
@@ -66,7 +65,6 @@ void main (int argc, char *argv[])
     Exit();
   }
   Printf("-------------------------------------------------------------------------------------\n");
-  */
 
   Printf("\n-------------------------------------Part3-------------------------------------------\n");
   // Create semaphore to not exit this process until all other processes
@@ -127,8 +125,7 @@ void main (int argc, char *argv[])
   }
   Printf("-------------------------------------------------------------------------------------\n");
 
-/*  
-  // Uncomment this section to run part 6
+  // Comment this section to not run part 6
   Printf("\n-------------------------------------Part6-------------------------------------------\n");
   // Create semaphore to not exit this process until all other processes
   // have signalled that they are complete
@@ -147,7 +144,6 @@ void main (int argc, char *argv[])
     Exit();
   }
   Printf("-------------------------------------------------------------------------------------\n");
-*/
 
   Printf("makeprocs (%d): All other processes completed, exiting main process.\n", getpid());
 
