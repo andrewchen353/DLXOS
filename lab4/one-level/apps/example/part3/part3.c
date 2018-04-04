@@ -1,7 +1,7 @@
 #include "usertraps.h"
 #include "misc.h"
 
-#define NUM_USER_STACK 10
+#define NUM_USER_STACK 100
 
 void growStack(int i)
 {

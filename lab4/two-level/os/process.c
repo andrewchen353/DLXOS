@@ -148,6 +148,8 @@ void ProcessFreeResources (PCB *pcb) {
     }
   }
 
+  ResetPTInUse(pcb);
+
   MemoryFreePage(pcb->sysStackArea / MEM_PAGESIZE);
 
   pcb->sysStackArea = 0;

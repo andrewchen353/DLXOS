@@ -95,7 +95,7 @@ void MemoryModuleInit() {
 
   freemap[page_idx] = pagemask;
 
-  nfreepages = MEM_MAX_PAGES - pagestart + 1; //FIXME
+  nfreepages = MEM_MAX_PAGES - pagestart + 1;
   dbprintf('m', "nfreepages: %x\n", nfreepages);
   dbprintf('m', "Leaving MemoryModuleInit (%d)\n", GetCurrentPid());
   return; //TODO check to make sure it works*/
@@ -135,6 +135,7 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
   if (!(entry & MEM_PTE_VALID))
   {
     dbprintf('m', "MemoryTranslateUserToSystem calling page fault handler\n");
+    dbprintf('m', "MemoryTranslateUserToSystem, addr: %x\n", addr);
     pcb->currentSavedFrame[PROCESS_STACK_FAULT] = addr;
     return MemoryPageFaultHandler(pcb); //FIXME more may need to be done
   }
@@ -272,13 +273,14 @@ int MemoryPageFaultHandler(PCB *pcb) {
   }
 
   ppagenum = MemoryAllocPage();
-  checkAllocatel2pt(pcb, vl1_pagenum);
+  if (ppagenum == MEM_FAIL)
+    return MEM_FAIL;
+  //checkAllocatel2pt(pcb, vl1_pagenum);
   ((uint32*)pcb->pagetable[vl1_pagenum])[vl2_pagenum] = MemorySetupPte(ppagenum);
   dbprintf('m', "Returning from page fault handler\n");
   dbprintf('m', "Leaving MemoryPageFaultHandler (%d)\n", GetCurrentPid());
   return MEM_SUCCESS;
 }
-
 
 //---------------------------------------------------------------------
 // You may need to implement the following functions and access them from process.c
@@ -293,7 +295,7 @@ int MemoryAllocPage(void) {
 
   dbprintf('m', "\nEntering MemoryAlloc (%d)\n", GetCurrentPid());
 
-  if(!nfreepages) return 0;
+  if(!nfreepages) return MEM_FAIL;
   
   for (i = 0; i < MEM_MAX_PAGES / 32; i++) {
     page_bunch = freemap[i];
@@ -331,12 +333,10 @@ int MemoryAllocPage(void) {
     return phys_page;
 }
 
-
 uint32 MemorySetupPte (uint32 page) {
   dbprintf('m', "\nEnter and leave MemorySetupPte (%d)\n", GetCurrentPid());
   return page * MEM_PAGESIZE + MEM_PTE_VALID;
 }
-
 
 void MemoryFreePage(uint32 page) {
   uint32 page_idx = page / 32;
@@ -364,14 +364,30 @@ uint32 *GetAddressL2() {
   int i;
   for (i = 0; i < MEM_L2TABLE_SIZE; i++){
     if (l2_num_tables[i].inuse == 0) {
-      (l2_num_tables[i]).inuse = 1;
-      return (l2_num_tables[i].table);
+      l2_num_tables[i].inuse = 1;
+      return l2_num_tables[i].table;
     }
   }
   return NULL;
 }
 
+/*
 void checkAllocatel2pt(PCB *pcb, uint32 l1_page) {
   if (((uint32*)pcb->pagetable[l1_page]) == NULL)
-    pcb->pagetable[l1_page] = GetAddressL2(); //GetPidFromAddress(pcb)
+    pcb->pagetable[l1_page] = GetAddressL2();
 }
+*/
+
+void ResetPTInUse(PCB* pcb) {
+  int i, j, k;
+
+  for (i = 0; i < MEM_L1TABLE_SIZE; i++) {
+    for (j = 0; j < MEM_L2TABLE_SIZE; j++) {
+      if (pcb->pagetable[i] == l2_num_tables[j].table) {
+        l2_num_tables[j].inuse = 0;
+        for (k = 0; k < MEM_L2TABLE_SIZE; k++)
+          l2_num_tables[j].table[k] = 0;
+      } 
+    }
+  }
+ }

@@ -66,7 +66,6 @@ void main (int argc, char *argv[])
 
   Printf("\n-------------------------------------Part4-------------------------------------------\n");
   // Create Hello World processes
-  Printf("-------------------------------------------------------------------------------------\n");
   Printf("makeprocs (%d): Creating 100 hello world's in a row\n", getpid());
   for(i=0; i<100; i++) {
     Printf("makeprocs (%d): Creating hello world #%d\n", getpid(), i);

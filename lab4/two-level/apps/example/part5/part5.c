@@ -11,18 +11,17 @@ void main (int argc, char *argv[])
     Exit();
   } 
 
-
   // Convert the command-line strings into integers for use as handles
   s_procs_completed = dstrtol(argv[1], NULL, 10);
-  Printf("Counting to 100000 in process %d\n", getpid());
+  Printf("Counting to 100000 in process %d recv: %d\n", getpid());
   for (i = 0; i < 100000; i++);
-  Printf("Finished counting to 100000 in process %d\n", getpid());
+  Printf("Finished counting to 100000 in process %d recv: %d\n", getpid());
 
   // Signal the semaphore to tell the original process that we're done
   if(sem_signal(s_procs_completed) != SYNC_SUCCESS) {
-    Printf("hello_world (%d): Bad semaphore s_procs_completed (%d)!\n", getpid(), s_procs_completed);
+    Printf("Part5 (%d): Bad semaphore s_procs_completed (%d)!\n", getpid(), s_procs_completed);
     Exit();
   }
 
-  Printf("hello_world (%d): Done!\n", getpid());
+  Printf("Part5 (%d): Done! recv: %d\n", getpid());
 }
