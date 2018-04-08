@@ -8,7 +8,6 @@
 typedef struct dfs_superblock {
   // STUDENT: put superblock internals here
   uint32 valid;
-  uint32 fsBlocksize;       // DFS block size in bytes
   uint32 numFsBlocks;       // total number of DFS blocks in file system
   uint32 inodeStartBlock;   // starting block number of array of nodes
   uint32 fbvStartBlock;     // starting block number of free block vector
