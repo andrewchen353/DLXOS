@@ -6,15 +6,16 @@
 #include "dfs.h"
 #include "synch.h"
 
-//static dfs_inode inodes[/*specify size*/ ]; // all inodes
-//static dfs_superblock sb; // superblock
-//static uint32 fbv[/*specify size*/]; // Free block vector
+static dfs_inode inodes[/*specify size*/ ]; // all inodes
+static dfs_superblock sb; // superblock
+static uint32 fbv[/*specify size*/]; // Free block vector
 
 static uint32 negativeone = 0xFFFFFFFF;
 static inline uint32 invert(uint32 n) { return n ^ negativeone; }
 
 // You have already been told about the most likely places where you should use locks. You may use 
 // additional locks if it is really necessary.
+static lock_t f_lock; // lock for allocation and free TODO static or not?
 
 // STUDENT: put your file system level functions below.
 // Some skeletons are provided. You can implement additional functions.
@@ -31,7 +32,28 @@ static inline uint32 invert(uint32 n) { return n ^ negativeone; }
 void DfsModuleInit() {
 // You essentially set the file system as invalid and then open 
 // using DfsOpenFileSystem().
+  int i;
+  
+  dbprintf('f', "DfsModuleInit (%d): Entering function\n", GetCurrentPid());
 
+  sb.valid = 0;
+
+  if ((f_lock = LockCreate()) != SYNC_SUCCESS) {
+    printf("DfsModuleInit (%d): Could not create the file lock\n", GetCurrentPid());
+    GracefulExit();
+  }
+
+  //TODO what is specific size
+  for (i = 0; i < /*specific size*/; i++)
+    inodes[i].inuse = 0;
+  for (i = 0; i < /*specific size*/; i++)
+    fbv[i] = 0;
+
+  if (DfsOpenFileSystem() != DFS_SUCCESS) {
+    printf("DfsModuleInit (%d): Could not open file system\n", GetCurrentPid());
+    GracefulExit();
+  }
+  dbprintf('f', "DfsModuleInit (%d): Leaving function\n", GetCurrentPid());
 }
 
 //-----------------------------------------------------------------
@@ -44,7 +66,11 @@ void DfsModuleInit() {
 void DfsInvalidate() {
 // This is just a one-line function which sets the valid bit of the 
 // superblock to 0.
+  dbprintf('f', "DfsInvalidate (%d): Entering function\n", GetCurrentPid());
 
+  sb.valid = 0;
+  
+  dbprintf('f', "DfsInvalidate (%d): Leaving function\n", GetCurrentPid());
 }
 
 //-------------------------------------------------------------------
@@ -54,23 +80,47 @@ void DfsInvalidate() {
 //-------------------------------------------------------------------
 
 int DfsOpenFileSystem() {
+  disk_block block;
+  uint32     blocksize;
+
+  dbprintf('f', "DfsOpenFileSystem (%d): Entering function\n", GetCurrentPid());
 //Basic steps:
 // Check that filesystem is not already open
+  if (sb.valid) {
+    dbprintf('f', "DfsOpenFileSystem (%d): file system already opened.. function failed\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
 
 // Read superblock from disk.  Note this is using the disk read rather 
 // than the DFS read function because the DFS read requires a valid 
 // filesystem in memory already, and the filesystem cannot be valid 
 // until we read the superblock. Also, we don't know the block size 
 // until we read the superblock, either.
+  if ((blocksize = DiskReadBlock(/* blocknum? TODO */, &block)) == DISK_FAIL) {
+    dbprintf('f', "DfsOpenFileSystem (%d): Could not read file system\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
 
 // Copy the data from the block we just read into the superblock in memory
+  bcopy(&block, &sb, blocksize);
 
 // All other blocks are sized by virtual block size:
 // Read inodes
 // Read free block vector
 // Change superblock to be invalid, write back to disk, then change 
 // it back to be valid in memory
+// TODO
 
+  sb.invalid = 0;
+  bcopy(&sb, &block, blocksize)
+  if ((blocksize = DiskWriteBlock(/*blocknum? TODO */, &block)) == DISK_FAIL) {
+    dbprintf('f', "DfsOpenFileSystem (%d): Could not write file system back to disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  sb.invalid = 1;
+
+  dbprintf('f', "DfsOpenFileSystem (%d): Leaving function\n", GetCurrentPid());
+  return DFS_SUCCESS;
 }
 
 
