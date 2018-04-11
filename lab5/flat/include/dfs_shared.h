@@ -23,7 +23,7 @@ typedef struct dfs_inode {
   // IMPORTANT: sizeof(dfs_inode) MUST return 96 in order to fit in enough
   // inodes in the filesystem (and to make your life easier).  To do this, 
   // adjust the maximumm length of the filename until the size of the overall inode 
-  // is 128 bytes.
+  // is 96 bytes.
   uint32 inuse;
   uint32 fileSize;
   char   filename[FILENAME_SIZE];

@@ -17,6 +17,6 @@ typedef unsigned int uint32;
 
 //STUDENT: define additional parameters here, if any
 #define DFS_INODE_MAX_NUM 192
-#define DFS_FBV_MAX_NUM_WORS 10
+#define FBV_SIZE (DFS_MAX_FILESYSTEM_SIZE/DFS_BLOCKSIZE)/32
 
 #endif

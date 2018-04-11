@@ -5,7 +5,8 @@
 
 dfs_superblock sb;
 dfs_inode inodes[DFS_INODE_MAX_NUM];
-uint32 fbv[DFS_FBV_MAX_NUM_WORDS];
+uint32 fbv[FBV_SIZE]; // number of entries/32
+dfs_block* b;
 
 int diskblocksize = 0; // These are global in order to speed things up
 int disksize = 0;      // (i.e. fewer traps to OS to get the same number)
@@ -35,32 +36,46 @@ void main (int argc, char *argv[])
   
   sb.valid = 0;
 
-  disksize = 1 << 24; // 16MB, max physical disk size
-  diskblocksize = 1024; // max size in bytes
-  num_filesystem_blocks = DFS_INODE_MAX_NUM; // max number of inodes
+  disksize = disk_size(); // 16MB, max physical disk size
+  diskblocksize = disk_blocksize(); // max size in bytes
+  num_filesystem_blocks = disksize/DFS_BLOCKSIZE;
 
-  sb.fsBlockSize = diskblocksize;
+  sb.fsBlockSize = DFS_BLOCKSIZE;
   sb.numFsBlocks = num_filesystem_blocks;
-  // sb.disksize ??? TODO
 
   // Make sure the disk exists before doing anything else
-  
+  disk_create();
 
   // Write all inodes as not in use and empty (all zeros)
   // Next, setup free block vector (fbv) and write free block vector to the disk
   // Finally, setup superblock as valid filesystem and write superblock and boot record to disk: 
   // boot record is all zeros in the first physical block, and superblock structure goes into the second physical block
   for(i = 0; i < DFS_INODE_MAX_NUM; i++)
-    inodes[i].inuse = 0;
-    // inodes[i]. 
-  sb.fbvStartBlock = 0;
+    inodes[i] = 0;
 
-  // NewfsWriteBlock(0, );
-  // NewfsWriteBlock(1, sb);
+  for(i = 0; i < FBV_SIZE; i++)
+    fbv[i] = 0xFFFFFFFF;
+
+  NewfsWriteBlock(0, (dfs_block*)sb);
+  for(i = 1; i < 17; i++)
+    NewfsWriteBlock(i, (dfs_block*)inodes);
+  for(i = 17; i < 19; i++)
+    NewfsWriteBlock(i, (dfs_block*)fbv);
+  for(i = 19; i < sb.numFsBlocks; i++)
+    NewfsWriteBlock(i, b);
+
+  sb.valid = 1;
 
   Printf("newfs (%d): Formatted DFS disk for %d bytes.\n", getpid(), disksize);
 }
 
 int NewfsWriteBlock(uint32 blocknum, dfs_block *b) {
-  // STUDENT: put your code here
+  int phys_block1 = blocknum * 2;
+  int phys_block2 = phys_block1 + 1;
+
+  if (disk_write_block(phys_block1, (char*)b) != DISK_SUCCESS)
+    return DISK_FAIL;
+  if (disk_write_block(phys_block2, (char*)(b + DISK_BLOCKSIZE)) != DISK_SUCCESS)
+    return DISK_FAIL;
+  return DISK_SUCCESS;
 }
