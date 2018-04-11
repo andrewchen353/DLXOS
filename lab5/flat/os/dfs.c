@@ -6,9 +6,9 @@
 #include "dfs.h"
 #include "synch.h"
 
-static dfs_inode inodes[/*specify size*/ ]; // all inodes
+static dfs_inode inodes[DFS_INODE_MAX_NUM]; // all inodes
 static dfs_superblock sb; // superblock
-static uint32 fbv[/*specify size*/]; // Free block vector
+static uint32 fbv[DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32]; // Free block vector
 
 static uint32 negativeone = 0xFFFFFFFF;
 static inline uint32 invert(uint32 n) { return n ^ negativeone; }
@@ -43,10 +43,9 @@ void DfsModuleInit() {
     GracefulExit();
   }
 
-  //TODO what is specific size
-  for (i = 0; i < /*specific size*/; i++)
+  for (i = 0; i < DFS_INODE_MAX_NUM; i++)
     inodes[i].inuse = 0;
-  for (i = 0; i < /*specific size*/; i++)
+  for (i = 0; i < DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32; i++)
     fbv[i] = 0;
 
   if (DfsOpenFileSystem() != DFS_SUCCESS) {
@@ -80,8 +79,8 @@ void DfsInvalidate() {
 //-------------------------------------------------------------------
 
 int DfsOpenFileSystem() {
-  disk_block block;
-  uint32     blocksize;
+  disk_block block, inode_block, fbv_block;
+  uint32     blocksize, inode_size, fbv_size;
 
   dbprintf('f', "DfsOpenFileSystem (%d): Entering function\n", GetCurrentPid());
 //Basic steps:
@@ -96,7 +95,7 @@ int DfsOpenFileSystem() {
 // filesystem in memory already, and the filesystem cannot be valid 
 // until we read the superblock. Also, we don't know the block size 
 // until we read the superblock, either.
-  if ((blocksize = DiskReadBlock(/* blocknum? TODO */, &block)) == DISK_FAIL) {
+  if ((blocksize = DiskReadBlock(1, &block)) == DISK_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not read file system\n", GetCurrentPid());
     return DFS_FAIL;
   }
@@ -109,11 +108,25 @@ int DfsOpenFileSystem() {
 // Read free block vector
 // Change superblock to be invalid, write back to disk, then change 
 // it back to be valid in memory
-// TODO
 
+  // Read Inodes
+  if ((inode_size = DiskReadBlock(sb.inodeStartBlock, &inode_block)) == DISK_FAIL) {
+    dbprintf('f', "DfsOpenFileSystem (%d): Could not read inodes from disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  bcopy(&inode_block, &inodes, inode_size);
+
+  // Read fbv
+  if ((fbv_size = DiskReadBlock(sb.fbvStartBlock, &fbv_block)) == DISK_FAIL) {
+    dbprintf('f', "DfsOpenFileSystem (%d): Could not read fbv from disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  bcopy(&fbv_block, &fbv, fbv_size);
+
+  // invalidate superblock and write back to disk
   sb.invalid = 0;
-  bcopy(&sb, &block, blocksize)
-  if ((blocksize = DiskWriteBlock(/*blocknum? TODO */, &block)) == DISK_FAIL) {
+  bcopy(&sb, &block, blocksize);
+  if ((blocksize = DiskWriteBlock(1, &block)) == DISK_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not write file system back to disk\n", GetCurrentPid());
     return DFS_FAIL;
   }
@@ -131,8 +144,22 @@ int DfsOpenFileSystem() {
 //-------------------------------------------------------------------
 
 int DfsCloseFileSystem() {
+  disk_block block;
 
+  dbprintf('f', "DfsCloseFileSystem (%d): Entering function\n");
 
+  if (!sb.valid) {
+    dbprintf('f', "DfsCloseFileSystem (%d): Cannot write an invalid file system\n");
+    return DFS_FAIL;
+  }
+
+  bcopy(&sb, &block, sb.fsBlocksize); // TODO supposed to use fsBlocksize?
+  if ((blocksize = DiskWriteBlock(1 /*blocknum*/, &block)) == DISK_FAIL) {
+    dbprintf('f', "DfsCloseFileSystem (%d): Could not write file system back to disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+ 
+  dbprintf('f', "DfsCloseFileSystem (%d): Leaving function\n");
 }
 
 
@@ -145,7 +172,51 @@ uint32 DfsAllocateBlock() {
 // Check that file system has been validly loaded into memory
 // Find the first free block using the free block vector (FBV), mark it in use
 // Return handle to block
+  int i, j;
+  uint32 fbv_bunch, fbv_bit, fbv_idx;
+  
+  dbprintf('f', "DfsAllocateBlock (%d): Entering function\n", GetCurrentPid());
 
+  if (!sb.valid) {
+    dbprintf('f', "DfsAllocateBlock (%d): Can't free from invalid file system\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  
+  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+    dbprintf('f', "DfsAllocateBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  for (i = 0; i < sb.numFsBlocks / 32; i++) {
+    if (!fbv[i]) {
+      fbv_bunch = fbv[i];
+      fbv_idx = i;
+      break;
+    }
+  }
+
+  for (j = 0; j < 32; j++) {
+    if (fbv_bunch & 0x1) {
+      fbv_bit = j;
+      break;
+    }
+    fbv_bunch = fbv_bunch >> 0x1;
+  }
+  
+  // set allocated page bit to 0
+  if (fbv_bit == 31)
+    fbv[fbv_idx] = 0x0;
+  else
+    fbv[fbv_idx] = fbv[fbv_idx] & (negativeone << (fbv_bit + 1) | ((1 << fbv_bit) - 1));
+
+  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+    dbprintf('f', "DfsAllocateBlock (%d): Could not release the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  dbprintf('f', "DfsAllocateBlock (%d): Leaving function\n", GetCurrentPid());
+
+  return fbv_idx * 32 + fbv_bit;
 }
 
 
@@ -154,7 +225,34 @@ uint32 DfsAllocateBlock() {
 //-----------------------------------------------------------------
 
 int DfsFreeBlock(uint32 blocknum) {
+  uint32 fbv_idx, fbv_bit, fbv_mask;
+  
+  dbprintf('f', "DfsFreeBlock (%d): Entering function\n", GetCurrentPid());
 
+  if (!sb.valid) {
+    dbprintf('f', "DfsFreeBlock (%d): Can't free from invalid file system\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+    dbprintf('f', "DfsFreeBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  fbv_idx = blocknum / 32;
+  fbv_bit = blocknum - fbv_idx * 32;
+  fbv_mask = 1 << fbv_bit;
+
+  fbv[fbv_idx] |= fbv_mask;
+
+  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+    dbprintf('f', "DfsFreeBlock (%d): Could not release the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  
+  dbprintf('f', "DfsFreeBlock (%d): Leaving function\n", GetCurrentPid());
+
+  return DFS_SUCCESS;
 }
 
 
@@ -166,8 +264,17 @@ int DfsFreeBlock(uint32 blocknum) {
 //-----------------------------------------------------------------
 
 int DfsReadBlock(uint32 blocknum, dfs_block *b) {
+  //TODO what does it mean by it could span multiple physical disk blocks?
+  
+  
+  dbprintf('f', "DfsReadBlock (%d): Entering function\n", GetCurrentPid());
+  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
+    dbprintf('f', "DfsReadBlock (%d): Block was not previously allocated, cannot read\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
 
 
+  dbprintf('f', "DfsReadBlock (%d): Leaving function\n", GetCurrentPid());
 }
 
 
@@ -179,7 +286,15 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
 //-----------------------------------------------------------------
 
 int DfsWriteBlock(uint32 blocknum, dfs_block *b){
+  
+  dbprintf('f', "DfsWriteBlock (%d): Entering function\n", GetCurrentPid());
+  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
+    dbprintf('f', "DfsWriteBlock (%d): Block was not previously allocated, cannot write\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
 
+
+  dbprintf('f', "DfsWriteBlock (%d): Leaving function\n", GetCurrentPid());
 }
 
 
