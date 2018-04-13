@@ -19,6 +19,7 @@ void main (int argc, char *argv[])
 	// STUDENT: put your code here. Follow the guidelines below. They are just the main steps. 
 	// You need to think of the finer details. You can use bzero() to zero out bytes in memory
   int i;
+Printf("Hi1111\n");
   //Initializations and argc check
   if(argc != 1)
   {
@@ -26,9 +27,9 @@ void main (int argc, char *argv[])
     Exit();
   }
 
-  bzero(&sb, sizeof(dfs_superblock));
+  bzero((char*)&sb, sizeof(dfs_superblock));
   //bzero(inodes, sizeof(dfs_inode) * DFS_INODE_MAX_NUM);
-  bzero(fbv, sizeof(uint32) * FBV_SIZE);
+  bzero((char*)fbv, sizeof(uint32) * FBV_SIZE);
   
   // Need to invalidate filesystem before writing to it to make sure that the OS
   // doesn't wipe out what we do here with the old version in memory
@@ -39,18 +40,19 @@ void main (int argc, char *argv[])
 
   disksize = disk_size(); // 16MB, max physical disk size
   diskblocksize = disk_blocksize(); // max size in bytes
-  num_filesystem_blocks = disksize/DFS_BLOCKSIZE;
 
-  sb.fsBlockSize = DFS_BLOCKSIZE;
-  sb.numFsBlocks = num_filesystem_blocks;
+  sb.fsBlocksize = DFS_BLOCKSIZE;
+  sb.numFsBlocks = disksize/DFS_BLOCKSIZE;
   sb.inodeStartBlock = NEWFS_INODE_BLOCK_START;
+  sb.fbvStartBlock = NEWFS_FBV_BLOCK_START;
 
+Printf("Hi\n");
   // Make sure the disk exists before doing anything else
   if (disk_create() == DISK_FAIL) {
     Printf("FATAL ERROR: could not create disk\n");
     Exit();
   }
-
+Printf("HERE\n");
   // Write all inodes as not in use and empty (all zeros)
   // Next, setup free block vector (fbv) and write free block vector to the disk
   // Finally, setup superblock as valid filesystem and write superblock and boot record to disk: 
@@ -63,7 +65,7 @@ void main (int argc, char *argv[])
 
   // write boot record to physical disk
   bzero((char*)b, sizeof(dfs_block));
-  NewFsWriteBlock(0, b);  
+  NewfsWriteBlock(0, b);  
  
   // write superblock to physical disk
   bcopy((char*) &sb, b->data, sizeof(dfs_superblock));
@@ -96,7 +98,7 @@ int NewfsWriteBlock(uint32 blocknum, dfs_block *b) {
 
   if (disk_write_block(phys_block1, b->data) != DISK_SUCCESS)
     return DISK_FAIL;
-  if (disk_write_block(phys_block2, (b + DISK_BLOCKSIZE)->data) != DISK_SUCCESS)
+  if (disk_write_block(phys_block2, (b + disk_blocksize())->data) != DISK_SUCCESS)
     return DISK_FAIL;
   return DISK_SUCCESS;
 }
