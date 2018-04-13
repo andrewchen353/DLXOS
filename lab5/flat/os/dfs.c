@@ -5,6 +5,7 @@
 #include "disk.h"
 #include "dfs.h"
 #include "synch.h"
+#include "process.h" // I added?
 
 static dfs_inode inodes[DFS_INODE_MAX_NUM]; // all inodes
 static dfs_superblock sb; // superblock
@@ -79,7 +80,8 @@ void DfsInvalidate() {
 //-------------------------------------------------------------------
 
 int DfsOpenFileSystem() {
-  disk_block block, inode_block, fbv_block;
+  disk_block block;
+  dfs_block  inode_block, fbv_block;
   uint32     blocksize, inode_size, fbv_size;
 
   dbprintf('f', "DfsOpenFileSystem (%d): Entering function\n", GetCurrentPid());
@@ -101,7 +103,7 @@ int DfsOpenFileSystem() {
   }
 
 // Copy the data from the block we just read into the superblock in memory
-  bcopy(&block, &sb, blocksize);
+  bcopy(block.data, (char *)(&sb), blocksize);
 
 // All other blocks are sized by virtual block size:
 // Read inodes
@@ -110,27 +112,27 @@ int DfsOpenFileSystem() {
 // it back to be valid in memory
 
   // Read Inodes
-  if ((inode_size = DiskReadBlock(sb.inodeStartBlock, &inode_block)) == DISK_FAIL) {
+  if ((inode_size = DfsReadBlock(sb.inodeStartBlock, &inode_block)) == DFS_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not read inodes from disk\n", GetCurrentPid());
     return DFS_FAIL;
   }
-  bcopy(&inode_block, &inodes, inode_size);
+  bcopy(inode_block.data, (char *)inodes, inode_size);
 
   // Read fbv
-  if ((fbv_size = DiskReadBlock(sb.fbvStartBlock, &fbv_block)) == DISK_FAIL) {
+  if ((fbv_size = DfsReadBlock(sb.fbvStartBlock, &fbv_block)) == DISK_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not read fbv from disk\n", GetCurrentPid());
     return DFS_FAIL;
   }
-  bcopy(&fbv_block, &fbv, fbv_size);
+  bcopy(fbv_block.data, (char *)fbv, fbv_size);
 
   // invalidate superblock and write back to disk
-  sb.invalid = 0;
-  bcopy(&sb, &block, blocksize);
+  sb.valid = 0;
+  bcopy((char *)(&sb), block.data, blocksize);
   if ((blocksize = DiskWriteBlock(1, &block)) == DISK_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not write file system back to disk\n", GetCurrentPid());
     return DFS_FAIL;
   }
-  sb.invalid = 1;
+  sb.valid = 1;
 
   dbprintf('f', "DfsOpenFileSystem (%d): Leaving function\n", GetCurrentPid());
   return DFS_SUCCESS;
@@ -145,21 +147,40 @@ int DfsOpenFileSystem() {
 
 int DfsCloseFileSystem() {
   disk_block block;
+  dfs_block  inode_block, fbv_block;
+  uint32     blocksize, inode_size, fbv_size;
 
-  dbprintf('f', "DfsCloseFileSystem (%d): Entering function\n");
+  dbprintf('f', "DfsCloseFileSystem (%d): Entering function\n", GetCurrentPid());
 
   if (!sb.valid) {
-    dbprintf('f', "DfsCloseFileSystem (%d): Cannot write an invalid file system\n");
+    dbprintf('f', "DfsCloseFileSystem (%d): Cannot write an invalid file system\n", GetCurrentPid());
     return DFS_FAIL;
   }
 
-  bcopy(&sb, &block, sb.fsBlocksize); // TODO supposed to use fsBlocksize?
+  bcopy((char *)(&sb), block.data, sb.fsBlocksize); 
   if ((blocksize = DiskWriteBlock(1 /*blocknum*/, &block)) == DISK_FAIL) {
     dbprintf('f', "DfsCloseFileSystem (%d): Could not write file system back to disk\n", GetCurrentPid());
     return DFS_FAIL;
   }
+  
+  // TODO write inode and fbv to disk as well?
+  // TODO need a for loop for inode and fbv as well in case they are larger than one block
+  bcopy((char *)inodes, inode_block.data, sb.fsBlocksize);
+  if ((inode_size = DfsWriteBlock(sb.inodeStartBlock, &inode_block)) == DFS_FAIL) {
+    dbprintf('f', "DfsCloseFileSystem (%d): Could not write inode blocks back to disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  bcopy((char *)fbv, fbv_block.data, sb.fsBlocksize);
+  if ((fbv_size = DfsWriteBlock(sb.fbvStartBlock, &fbv_block)) == DFS_FAIL) {
+    dbprintf('f', "DfsCloseFileSystem (%d): Could not write fbv blocks back to disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }  
+
+  sb.valid = 0;
  
-  dbprintf('f', "DfsCloseFileSystem (%d): Leaving function\n");
+  dbprintf('f', "DfsCloseFileSystem (%d): Leaving function\n", GetCurrentPid());
+  return DFS_SUCCESS;
 }
 
 
@@ -168,7 +189,7 @@ int DfsCloseFileSystem() {
 // locks where necessary.
 //-----------------------------------------------------------------
 
-uint32 DfsAllocateBlock() {
+int DfsAllocateBlock() {
 // Check that file system has been validly loaded into memory
 // Find the first free block using the free block vector (FBV), mark it in use
 // Return handle to block
@@ -264,17 +285,24 @@ int DfsFreeBlock(uint32 blocknum) {
 //-----------------------------------------------------------------
 
 int DfsReadBlock(uint32 blocknum, dfs_block *b) {
-  //TODO what does it mean by it could span multiple physical disk blocks?
-  
-  
+  uint32 blocksize;
+  int i;
+  //TODO what does it mean by it could span multiple physical disk blocks? 
   dbprintf('f', "DfsReadBlock (%d): Entering function\n", GetCurrentPid());
   if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
     dbprintf('f', "DfsReadBlock (%d): Block was not previously allocated, cannot read\n", GetCurrentPid());
     return DFS_FAIL;
   }
 
+  for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {  
+    if ((blocksize = DiskReadBlock(blocknum * 2 + i, (disk_block *)(b + i * DISK_BLOCKSIZE))) == DISK_FAIL) {
+      dbprintf('f', "DfsReadBlock (%d): Could not read block from disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+  }
 
   dbprintf('f', "DfsReadBlock (%d): Leaving function\n", GetCurrentPid());
+  return blocksize;
 }
 
 
@@ -286,15 +314,24 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
 //-----------------------------------------------------------------
 
 int DfsWriteBlock(uint32 blocknum, dfs_block *b){
-  
+  uint32 blocksize; 
+  int i;
+
   dbprintf('f', "DfsWriteBlock (%d): Entering function\n", GetCurrentPid());
   if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
     dbprintf('f', "DfsWriteBlock (%d): Block was not previously allocated, cannot write\n", GetCurrentPid());
     return DFS_FAIL;
   }
-
+ 
+  for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {  
+    if ((blocksize = DiskWriteBlock(blocknum * 2 + i, (disk_block *)(b + i * DISK_BLOCKSIZE))) == DISK_FAIL) {
+      dbprintf('f', "DfsWriteBlock (%d): Could not write block to disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+  }
 
   dbprintf('f', "DfsWriteBlock (%d): Leaving function\n", GetCurrentPid());
+  return blocksize;
 }
 
 

@@ -9,9 +9,9 @@ int DfsOpenFileSystem();
 int DfsCloseFileSystem();
 void DfsInvalidate();
 int DfsAllocateBlock();
-int DfsFreeBlock(int blocknum);
-int DfsReadBlock(int blocknum, dfs_block *b);
-int DfsWriteBlock(int blocknum, dfs_block *b);
+int DfsFreeBlock(uint32 blocknum);
+int DfsReadBlock(uint32 blocknum, dfs_block *b);
+int DfsWriteBlock(uint32 blocknum, dfs_block *b);
 
 ///Inode functions
 int DfsInodeDelete();

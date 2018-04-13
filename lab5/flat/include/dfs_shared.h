@@ -4,6 +4,7 @@
 #define DFS_BLOCKSIZE  1024  // Must be an integer multiple of the disk blocksize
 #define NUM_ADDR_BLOCK 10
 #define FILENAME_SIZE  44
+#define DFS_INODE_MAX_NUM 192
 
 typedef struct dfs_superblock {
   // STUDENT: put superblock internals here
