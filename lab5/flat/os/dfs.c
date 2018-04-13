@@ -356,7 +356,7 @@ int DfsInodeFilenameExists(char *filename) {
   }
 
   for (i = 0; i < DFS_INODE_MAX_NUM; i++) {
-    if (inodes[i].inuse && dstrncmp(filename, inodes[i].filename, dstrnlen(filename))) {
+    if (inodes[i].inuse && dstrncmp(filename, inodes[i].filename, dstrlen(filename))) {
       handle = i;
     }
   }
@@ -396,7 +396,7 @@ int DfsInodeOpen(char *filename) {
       if (!inodes[i].inuse) {
         handle = i;
         inodes[i].inuse = 1;
-        dstrncpy(inodes[i].filename, filename, dstrnlen(filename));
+        dstrncpy(inodes[i].filename, filename, dstrlen(filename));
         break;
       }
     }
