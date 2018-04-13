@@ -346,7 +346,28 @@ int DfsWriteBlock(uint32 blocknum, dfs_block *b){
 //-----------------------------------------------------------------
 
 uint32 DfsInodeFilenameExists(char *filename) {
+  uint32 handle = -1;
+  int    i;
 
+  dbprintf('f', "DfsInodeFilenameExists (%d): Entering function\n", GetCurrentPid());
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeFilenameExists (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  for (i = 0; i < DFS_INODE_MAX_NUM; i++) {
+    if (inodes[i].inuse && dstrncmp(filename, inode[i].filename, dstrnlen(filename))) {
+      handle = i;
+    }
+  }
+
+  if (handle == -1) {
+    dbprintf('f', "DfsInodeFilenameExists (%d): Filename given does not exist in current inodes\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+    
+  dbprintf('f', "DfsInodeFilenameExists (%d): Leaving function\n", GetCurrentPid());
+  return handle;
 }
 
 
@@ -359,7 +380,31 @@ uint32 DfsInodeFilenameExists(char *filename) {
 //-----------------------------------------------------------------
 
 uint32 DfsInodeOpen(char *filename) {
+  uint32 handle;
 
+  dbprintf('f', "DfsInodeOpen (%d): Entering function\n", GetCurrentPid());
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeOpen (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  handle = DfsInodeFilenameExists(filename);
+  
+  if (handle == DFS_FAIL) {
+    for (i = 0; i < DFS_INODE_MAX_NUM; i++) { //TODO check to make sure we can use this constant
+      if (!inodes[i].inuse) {
+        handle = i;
+        inodes[i].inuse = 1;
+        dstrncpy(inodes[i].filename, filename, dstrnlen(filename));
+        break;
+      }
+    }
+    dbprintf('f', "DfsInodeOpen (%d): No more available inodes\n", GetCurrentPid());
+    return DSF_FAIL;
+  }
+
+  dbprintf('f', "DfsInodeOpen (%d): Leaving function\n", GetCurrentPid());
+  return handle;
 }
 
 
@@ -367,12 +412,22 @@ uint32 DfsInodeOpen(char *filename) {
 // DfsInodeDelete de-allocates any data blocks used by this inode, 
 // including the indirect addressing block if necessary, then mark 
 // the inode as no longer in use. Use locks when modifying the 
-// "inuse" flag in an inode.Return DFS_FAIL on failure, and 
+// "inuse" flag in an inode. Return DFS_FAIL on failure, and 
 // DFS_SUCCESS on success.
 //-----------------------------------------------------------------
 
 int DfsInodeDelete(uint32 handle) {
-
+  
+  dbprintf('f', "DfsInodeDelete (%d): Entering function\n", GetCurrentPid());
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeDelete (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  
+  // TODO deallocate?
+  
+  dbprintf('f', "DfsInodeDelete (%d): Leaving function\n", GetCurrentPid());
+  return DFS_SUCCESS;
 }
 
 
@@ -384,7 +439,7 @@ int DfsInodeDelete(uint32 handle) {
 //-----------------------------------------------------------------
 
 int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
-
+  return DFS_SUCCESS;
 }
 
 
@@ -400,6 +455,7 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
 int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
 
 
+  return DFS_SUCCESS;
 }
 
 
@@ -411,6 +467,7 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
 
 uint32 DfsInodeFilesize(uint32 handle) {
 
+  return DFS_SUCCESS;
 }
 
 
@@ -426,6 +483,7 @@ uint32 DfsInodeFilesize(uint32 handle) {
 
 uint32 DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
 
+  return DFS_SUCCESS;
 
 }
 
@@ -439,4 +497,5 @@ uint32 DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
 
 uint32 DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
 
+  return DFS_SUCCESS;
 }
