@@ -14,15 +14,13 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b);
 int DfsWriteBlock(uint32 blocknum, dfs_block *b);
 
 ///Inode functions
-int DfsInodeDelete();
-int DfsInodeReadBytes();
 int DfsInodeFilenameExists(char* filename);
 int DfsInodeOpen(char* filename);
-int DfsInodeDelete(int handle);
-int DfsInodeReadBytes(int handle, void* mem, int start_byte, int num_bytes);
-int DfsInodeWriteBytes(int handle, void* mem, int start_byte, int num_bytes);
-int DfsInodeFilesize(int handle);
-int DfsInodeAllocateVirtualBlock(int handle, int virtual_blocknum);
-int DfsInodeTranslateVirtualToFilesys(int handle, int virtual_blocknum);
+int DfsInodeDelete(uint32 handle);
+int DfsInodeReadBytes(uint32 handle, void* mem, int start_byte, int num_bytes);
+int DfsInodeWriteBytes(uint32 handle, void* mem, int start_byte, int num_bytes);
+int DfsInodeFilesize(uint32 handle);
+int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum);
+int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum);
 
 #endif
