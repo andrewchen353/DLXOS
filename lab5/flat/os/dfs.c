@@ -345,7 +345,7 @@ int DfsWriteBlock(uint32 blocknum, dfs_block *b){
 // of the inode. If it is not found, return DFS_FAIL.
 //-----------------------------------------------------------------
 
-uint32 DfsInodeFilenameExists(char *filename) {
+int DfsInodeFilenameExists(char *filename) {
   uint32 handle = -1;
   int    i;
 
@@ -356,7 +356,7 @@ uint32 DfsInodeFilenameExists(char *filename) {
   }
 
   for (i = 0; i < DFS_INODE_MAX_NUM; i++) {
-    if (inodes[i].inuse && dstrncmp(filename, inode[i].filename, dstrnlen(filename))) {
+    if (inodes[i].inuse && dstrncmp(filename, inodes[i].filename, dstrnlen(filename))) {
       handle = i;
     }
   }
@@ -379,8 +379,9 @@ uint32 DfsInodeFilenameExists(char *filename) {
 // Remember to use locks whenever you allocate a new inode.
 //-----------------------------------------------------------------
 
-uint32 DfsInodeOpen(char *filename) {
+int DfsInodeOpen(char *filename) {
   uint32 handle;
+  int    i;
 
   dbprintf('f', "DfsInodeOpen (%d): Entering function\n", GetCurrentPid());
   if (!sb.valid) {
@@ -400,7 +401,7 @@ uint32 DfsInodeOpen(char *filename) {
       }
     }
     dbprintf('f', "DfsInodeOpen (%d): No more available inodes\n", GetCurrentPid());
-    return DSF_FAIL;
+    return DFS_FAIL;
   }
 
   dbprintf('f', "DfsInodeOpen (%d): Leaving function\n", GetCurrentPid());
@@ -465,7 +466,7 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
 // been written to the inode thus far. Return DFS_FAIL on failure.
 //-----------------------------------------------------------------
 
-uint32 DfsInodeFilesize(uint32 handle) {
+int DfsInodeFilesize(uint32 handle) {
 
   return DFS_SUCCESS;
 }
@@ -481,7 +482,7 @@ uint32 DfsInodeFilesize(uint32 handle) {
 // block number on success.
 //-----------------------------------------------------------------
 
-uint32 DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
+int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
 
   return DFS_SUCCESS;
 
@@ -495,7 +496,7 @@ uint32 DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
 // the inode identified by handle. Return DFS_FAIL on failure.
 //-----------------------------------------------------------------
 
-uint32 DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
+int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
 
   return DFS_SUCCESS;
 }
