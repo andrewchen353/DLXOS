@@ -39,7 +39,7 @@ void DfsModuleInit() {
 
   sb.valid = 0;
 
-  if ((f_lock = LockCreate()) != SYNC_SUCCESS) {
+  if ((f_lock = LockCreate()) == SYNC_FAIL) {
     printf("DfsModuleInit (%d): Could not create the file lock\n", GetCurrentPid());
     GracefulExit();
   }
@@ -338,7 +338,8 @@ int DfsWriteBlock(uint32 blocknum, dfs_block *b){
 ////////////////////////////////////////////////////////////////////////////////
 // Inode-based functions
 ////////////////////////////////////////////////////////////////////////////////
-
+// TODO check to make sure locks are used in correct places in inode functions
+// TODO also check to make sure all error checks are correct
 //-----------------------------------------------------------------
 // DfsInodeFilenameExists looks through all the inuse inodes for 
 // the given filename. If the filename is found, return the handle 
@@ -440,7 +441,23 @@ int DfsInodeDelete(uint32 handle) {
 //-----------------------------------------------------------------
 
 int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
-  return DFS_SUCCESS;
+  uint32    index, size;
+  dfs_block block;  
+
+  dbprintf('f', "DfsInodeReadBytes (%d): Entering function\n", GetCurrentPid());
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeReadBytes (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  index = start_byte / sb.fsBlocksize;
+  if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
+    dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  bcopy(block.data + start_byte % sb.fsBlocksize, (char *)mem, num_bytes);
+    
+  dbprintf('f', "DfsInodeReadBytes (%d): Leaving function\n", GetCurrentPid());
+  return num_bytes;
 }
 
 
@@ -454,9 +471,30 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
 //-----------------------------------------------------------------
 
 int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
+  uint32    index, size;
+  dfs_block block;
 
+  dbprintf('f', "DfsInodeWriteBytes (%d): Entering function\n", GetCurrentPid());
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeWriteBytes (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  /*index = start_byte / sb.fsBlocksize;
+  if (start_byte % sb.fsBlocksize) {
+    if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
+      dbprintf('f', "DfsInodeWriteBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+    bcopy(block.data + start_byte % sb.fsBlocksize, (char *)mem, num_bytes);
+  } else {
+    bcopy((char *)mem, block.data + start_byte % sb.fsBlocksize, num_bytes);
+    if ((size = DfsWriteBlock(index, &block)) == DFS_FAIL){
+      dbprintf('f', "DfsInodeWriteBytes (%d): Could not write the block to the disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+  }*/
 
-  return DFS_SUCCESS;
+  return num_bytes;
 }
 
 
