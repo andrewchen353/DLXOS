@@ -19,7 +19,7 @@ void main (int argc, char *argv[])
 	// STUDENT: put your code here. Follow the guidelines below. They are just the main steps. 
 	// You need to think of the finer details. You can use bzero() to zero out bytes in memory
   int i;
-Printf("Hi1111\n");
+
   //Initializations and argc check
   if(argc != 1)
   {
@@ -46,13 +46,13 @@ Printf("Hi1111\n");
   sb.inodeStartBlock = NEWFS_INODE_BLOCK_START;
   sb.fbvStartBlock = NEWFS_FBV_BLOCK_START;
 
-Printf("Hi\n");
+Printf("\nHi\n");
   // Make sure the disk exists before doing anything else
   if (disk_create() == DISK_FAIL) {
     Printf("FATAL ERROR: could not create disk\n");
     Exit();
   }
-Printf("HERE\n");
+Printf("\nHERE\n");
   // Write all inodes as not in use and empty (all zeros)
   // Next, setup free block vector (fbv) and write free block vector to the disk
   // Finally, setup superblock as valid filesystem and write superblock and boot record to disk: 
