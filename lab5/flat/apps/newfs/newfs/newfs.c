@@ -25,9 +25,10 @@ void main (int argc, char *argv[])
     Printf("Usage: No arguments expected\n");
     Exit();
   }
+
   bzero(&sb, sizeof(dfs_superblock));
-  bzero(inodes, sizeof(dfs_inode) * DFS_INODE_MAX_NUM);
-  bzero(fbv, sizeof(uint32) * DFS_FBV_MAX_NUM_WORDS);
+  //bzero(inodes, sizeof(dfs_inode) * DFS_INODE_MAX_NUM);
+  bzero(fbv, sizeof(uint32) * FBV_SIZE);
   
   // Need to invalidate filesystem before writing to it to make sure that the OS
   // doesn't wipe out what we do here with the old version in memory
@@ -42,26 +43,46 @@ void main (int argc, char *argv[])
 
   sb.fsBlockSize = DFS_BLOCKSIZE;
   sb.numFsBlocks = num_filesystem_blocks;
+  sb.inodeStartBlock = NEWFS_INODE_BLOCK_START;
 
   // Make sure the disk exists before doing anything else
-  disk_create();
+  if (disk_create() == DISK_FAIL) {
+    Printf("FATAL ERROR: could not create disk\n");
+    Exit();
+  }
 
   // Write all inodes as not in use and empty (all zeros)
   // Next, setup free block vector (fbv) and write free block vector to the disk
   // Finally, setup superblock as valid filesystem and write superblock and boot record to disk: 
   // boot record is all zeros in the first physical block, and superblock structure goes into the second physical block
-  for(i = 0; i < DFS_INODE_MAX_NUM; i++)
+  /*for(i = 0; i < DFS_INODE_MAX_NUM; i++)
     inodes[i] = 0;
 
   for(i = 0; i < FBV_SIZE; i++)
-    fbv[i] = 0xFFFFFFFF;
+    fbv[i] = 0xFFFFFFFF;*/
 
-  NewfsWriteBlock(0, (dfs_block*)sb);
-  for(i = 1; i < 17; i++)
-    NewfsWriteBlock(i, (dfs_block*)inodes);
-  for(i = 17; i < 19; i++)
-    NewfsWriteBlock(i, (dfs_block*)fbv);
-  for(i = 19; i < sb.numFsBlocks; i++)
+  // write boot record to physical disk
+  bzero((char*)b, sizeof(dfs_block));
+  NewFsWriteBlock(0, b);  
+ 
+  // write superblock to physical disk
+  bcopy((char*) &sb, b->data, sizeof(dfs_superblock));
+  NewfsWriteBlock(1, b);
+
+  // 0 out all inodes
+  bzero((char*)b, sizeof(dfs_block));
+
+  // write inodes to disk
+  for(i = 2; i < 20; i++)
+    //bcopy((char*)(inode + i * sizeof(dfs_inode)), b->data, sizeof());
+    NewfsWriteBlock(i, b);
+  
+  // write free block vector to disk 
+  for(i = 20; i < 22; i++)
+    NewfsWriteBlock(i, b);
+
+  // write data blocks to disk
+  for(i = 21; i < sb.numFsBlocks; i++)
     NewfsWriteBlock(i, b);
 
   sb.valid = 1;
@@ -73,9 +94,9 @@ int NewfsWriteBlock(uint32 blocknum, dfs_block *b) {
   int phys_block1 = blocknum * 2;
   int phys_block2 = phys_block1 + 1;
 
-  if (disk_write_block(phys_block1, (char*)b) != DISK_SUCCESS)
+  if (disk_write_block(phys_block1, b->data) != DISK_SUCCESS)
     return DISK_FAIL;
-  if (disk_write_block(phys_block2, (char*)(b + DISK_BLOCKSIZE)) != DISK_SUCCESS)
+  if (disk_write_block(phys_block2, (b + DISK_BLOCKSIZE)->data) != DISK_SUCCESS)
     return DISK_FAIL;
   return DISK_SUCCESS;
 }
