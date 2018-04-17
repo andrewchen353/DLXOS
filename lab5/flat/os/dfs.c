@@ -393,6 +393,11 @@ int DfsInodeOpen(char *filename) {
   handle = DfsInodeFilenameExists(filename);
   
   if (handle == DFS_FAIL) {
+    if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
+      dbprintf('f', "DfsInodeOpen (%d): could not acquire the file lock\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+
     for (i = 0; i < DFS_INODE_MAX_NUM; i++) { //TODO check to make sure we can use this constant
       if (!inodes[i].inuse) {
         handle = i;
@@ -401,6 +406,12 @@ int DfsInodeOpen(char *filename) {
         break;
       }
     }
+
+    if (LockHandleRelease(f_lock) == SYNC_FAIL) {
+      dbprintf('f', "DfsInodeOpen (%d): could not release the file lock\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+
     dbprintf('f', "DfsInodeOpen (%d): No more available inodes\n", GetCurrentPid());
     return DFS_FAIL;
   }
@@ -425,8 +436,24 @@ int DfsInodeDelete(uint32 handle) {
     dbprintf('f', "DfsInodeDelete (%d): file system is not valid\n", GetCurrentPid());
     return DFS_FAIL;
   }
-  
-  // TODO deallocate?
+  if (!inodes[handle].inuse) {
+    dbprintf('f', "DfsInodeDelete (%d): inode trying to free is not inuse\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeDelete (%d): could not acquire the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  inodes[handle].inuse = 0;
+
+  // TODO de-allocate indirect and direct? mfree?
+
+  if (LockHandleRelease(f_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeDelete (%d): could not release the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
   
   dbprintf('f', "DfsInodeDelete (%d): Leaving function\n", GetCurrentPid());
   return DFS_SUCCESS;
@@ -449,7 +476,13 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
     dbprintf('f', "DfsInodeReadBytes (%d): file system is not valid\n", GetCurrentPid());
     return DFS_FAIL;
   }
+  if (!inodes[handle].inuse) {
+    dbprintf('f', "DfsInodeReadBytes (%d): inode trying to access is not in use\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
   index = start_byte / sb.fsBlocksize;
+  // TODO call translate? Can number of bytes be more than one DFS block?
   if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
     dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
     return DFS_FAIL;
@@ -505,8 +538,19 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
 //-----------------------------------------------------------------
 
 int DfsInodeFilesize(uint32 handle) {
+  dbprintf('f', "DfsInodeFilesize (%d): Entering function\n", GetCurrentPid());
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeFilesize (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  if (!inodes[handle].inuse) {
+    dbprintf('f', "DfsInodeFilesize (%d): inode trying to access is not in use\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
 
-  return DFS_SUCCESS;
+  dbprintf('f', "DfsInodeFilesize (%d): Leaving function\n", GetCurrentPid());
+
+  return inodes[handle].fileSize;
 }
 
 
