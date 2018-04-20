@@ -49,10 +49,13 @@ void DfsModuleInit() {
   for (i = 0; i < DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32; i++)
     fbv[i] = 0;
 
+  DfsOpenFileSystem(); //????????????????????????????????????????????
+
+  /*
   if (DfsOpenFileSystem() != DFS_SUCCESS) {
     printf("DfsModuleInit (%d): Could not open file system\n", GetCurrentPid());
     GracefulExit();
-  }
+  }*/
   dbprintf('f', "DfsModuleInit (%d): Leaving function\n", GetCurrentPid());
 }
 
@@ -97,13 +100,19 @@ int DfsOpenFileSystem() {
 // filesystem in memory already, and the filesystem cannot be valid 
 // until we read the superblock. Also, we don't know the block size 
 // until we read the superblock, either.
-  if ((blocksize = DiskReadBlock(1, &block)) == DISK_FAIL) {
+  if ((blocksize = DiskReadBlock(1 * 2, &block)) == DISK_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not read file system\n", GetCurrentPid());
     return DFS_FAIL;
   }
 
 // Copy the data from the block we just read into the superblock in memory
   bcopy(block.data, (char *)(&sb), blocksize);
+
+  printf("valid: %d\n", sb.valid);
+  printf("fsBlocksize: %d\n", sb.fsBlocksize);
+  printf("numFsBlocks: %d\n", sb.numFsBlocks);
+  printf("inodeStartBlock: %d\n", sb.inodeStartBlock);
+  printf("fbvStartBlock: %d\n", sb.fbvStartBlock);
 
 // All other blocks are sized by virtual block size:
 // Read inodes
@@ -117,7 +126,7 @@ int DfsOpenFileSystem() {
     return DFS_FAIL;
   }
   bcopy(inode_block.data, (char *)inodes, inode_size);
-
+  
   // Read fbv
   if ((fbv_size = DfsReadBlock(sb.fbvStartBlock, &fbv_block)) == DISK_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not read fbv from disk\n", GetCurrentPid());
@@ -128,7 +137,7 @@ int DfsOpenFileSystem() {
   // invalidate superblock and write back to disk
   sb.valid = 0;
   bcopy((char *)(&sb), block.data, blocksize);
-  if ((blocksize = DiskWriteBlock(1, &block)) == DISK_FAIL) {
+  if ((blocksize = DiskWriteBlock(1 * 2, &block)) == DISK_FAIL) {
     dbprintf('f', "DfsOpenFileSystem (%d): Could not write file system back to disk\n", GetCurrentPid());
     return DFS_FAIL;
   }
@@ -286,23 +295,26 @@ int DfsFreeBlock(uint32 blocknum) {
 
 int DfsReadBlock(uint32 blocknum, dfs_block *b) {
   uint32 blocksize;
+  uint32 totalsize;
   int i;
   //TODO what does it mean by it could span multiple physical disk blocks? 
   dbprintf('f', "DfsReadBlock (%d): Entering function\n", GetCurrentPid());
-  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
+  /*if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
     dbprintf('f', "DfsReadBlock (%d): Block was not previously allocated, cannot read\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
-  for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {  
+  for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+    printf("reading blocknum %d\n", blocknum * 2 +i);  
     if ((blocksize = DiskReadBlock(blocknum * 2 + i, (disk_block *)(b + i * DISK_BLOCKSIZE))) == DISK_FAIL) {
       dbprintf('f', "DfsReadBlock (%d): Could not read block from disk\n", GetCurrentPid());
       return DFS_FAIL;
     }
+    totalsize += blocksize;
   }
 
   dbprintf('f', "DfsReadBlock (%d): Leaving function\n", GetCurrentPid());
-  return blocksize;
+  return totalsize;
 }
 
 
@@ -318,10 +330,10 @@ int DfsWriteBlock(uint32 blocknum, dfs_block *b){
   int i;
 
   dbprintf('f', "DfsWriteBlock (%d): Entering function\n", GetCurrentPid());
-  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
+  /*if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
     dbprintf('f', "DfsWriteBlock (%d): Block was not previously allocated, cannot write\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
  
   for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {  
     if ((blocksize = DiskWriteBlock(blocknum * 2 + i, (disk_block *)(b + i * DISK_BLOCKSIZE))) == DISK_FAIL) {
@@ -565,6 +577,28 @@ int DfsInodeFilesize(uint32 handle) {
 //-----------------------------------------------------------------
 
 int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
+
+  int fs_block;
+
+  dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): Entering function\n", GetCurrentPid());
+  
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeFilesize (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  if (!inodes[handle].inuse) {
+    dbprintf('f', "DfsInodeFilesize (%d): inode trying to access is not in use\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  // check if fs_block is valid
+  if((fs_block = DfsAllocateBlock()) == DFS_FAIL) {
+    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): unable to allocate fs block\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+ 
+  // find an unused index in directAddr table
+  //directAddr[virtual_blocknum] = fs_block;
 
   return DFS_SUCCESS;
 
