@@ -10,6 +10,7 @@
 static dfs_inode inodes[DFS_INODE_MAX_NUM]; // all inodes
 static dfs_superblock sb; // superblock
 static uint32 fbv[DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32]; // Free block vector
+static uint32 indirect_table[DFS_BLOCKSIZE / 4]; // fs_blocksize / sizeof(uint32) -- 4 bytes
 
 static uint32 negativeone = 0xFFFFFFFF;
 static inline uint32 invert(uint32 n) { return n ^ negativeone; }
@@ -614,5 +615,20 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
 
 int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
 
-  return DFS_SUCCESS;
+  if (!sb.valid) {
+    dbprintf('f', "DfsInodeFilesize (%d): file system is not valid\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  if (!inodes[handle].inuse) {
+    dbprintf('f', "DfsInodeFilesize (%d): inode trying to access is not in use\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  // return fs blocknum in direct addr table
+  if (virtual_blocknum < NUM_ADDR_BLOCK)
+    return inodes[handle].directAddr[virtual_blocknum];
+
+  return indirect_table[virtual_blocknum - NUM_ADDR_BLOCK];
+  
 }
