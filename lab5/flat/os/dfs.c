@@ -10,7 +10,6 @@
 static dfs_inode inodes[DFS_INODE_MAX_NUM]; // all inodes
 static dfs_superblock sb; // superblock
 static uint32 fbv[DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32]; // Free block vector
-static uint32 indirect_table[DFS_BLOCKSIZE / 4]; // fs_blocksize / sizeof(uint32) -- 4 bytes
 
 static uint32 negativeone = 0xFFFFFFFF;
 static inline uint32 invert(uint32 n) { return n ^ negativeone; }
@@ -50,13 +49,8 @@ void DfsModuleInit() {
   for (i = 0; i < DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32; i++)
     fbv[i] = 0;
 
-  DfsOpenFileSystem(); //????????????????????????????????????????????
+  DfsOpenFileSystem(); 
 
-  /*
-  if (DfsOpenFileSystem() != DFS_SUCCESS) {
-    printf("DfsModuleInit (%d): Could not open file system\n", GetCurrentPid());
-    GracefulExit();
-  }*/
   dbprintf('f', "DfsModuleInit (%d): Leaving function\n", GetCurrentPid());
 }
 
@@ -85,8 +79,9 @@ void DfsInvalidate() {
 
 int DfsOpenFileSystem() {
   disk_block block;
-  dfs_block  inode_block, fbv_block;
+  disk_block  inode_block, fbv_block;
   uint32     blocksize, inode_size, fbv_size;
+  int        i;
 
   dbprintf('f', "DfsOpenFileSystem (%d): Entering function\n", GetCurrentPid());
 //Basic steps:
@@ -122,18 +117,22 @@ int DfsOpenFileSystem() {
 // it back to be valid in memory
 
   // Read Inodes
-  if ((inode_size = DfsReadBlock(sb.inodeStartBlock, &inode_block)) == DFS_FAIL) {
-    dbprintf('f', "DfsOpenFileSystem (%d): Could not read inodes from disk\n", GetCurrentPid());
-    return DFS_FAIL;
+  for (i = 0; i < (sb.fbvStartBlock - sb.inodeStartBlock) * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+    if ((inode_size = DiskReadBlock(sb.inodeStartBlock * 2 + i, &inode_block)) == DFS_FAIL) {
+      dbprintf('f', "DfsOpenFileSystem (%d): Could not read inodes from disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+    bcopy(inode_block.data, (char *)(inodes + i * DISK_BLOCKSIZE), inode_size);
   }
-  bcopy(inode_block.data, (char *)inodes, inode_size);
-  
-  // Read fbv
-  if ((fbv_size = DfsReadBlock(sb.fbvStartBlock, &fbv_block)) == DISK_FAIL) {
-    dbprintf('f', "DfsOpenFileSystem (%d): Could not read fbv from disk\n", GetCurrentPid());
-    return DFS_FAIL;
+   
+  // Read fbv TODO why for loop upperbound
+  for (i = 0; i < (sb.numFsBlocks / 32 / DISK_BLOCKSIZE) * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+    if ((fbv_size = DiskReadBlock(sb.fbvStartBlock * 2 + i, &fbv_block)) == DFS_FAIL) {
+      dbprintf('f', "DfsOpenFileSystem (%d): Could not read fbv from disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+    bcopy(fbv_block.data, (char *)(fbv + i * DISK_BLOCKSIZE), fbv_size);
   }
-  bcopy(fbv_block.data, (char *)fbv, fbv_size);
 
   // invalidate superblock and write back to disk
   sb.valid = 0;
@@ -148,7 +147,6 @@ int DfsOpenFileSystem() {
   return DFS_SUCCESS;
 }
 
-
 //-------------------------------------------------------------------
 // DfsCloseFileSystem writes the current memory version of the
 // filesystem metadata to the disk, and invalidates the memory's 
@@ -157,8 +155,9 @@ int DfsOpenFileSystem() {
 
 int DfsCloseFileSystem() {
   disk_block block;
-  dfs_block  inode_block, fbv_block;
+  disk_block inode_block, fbv_block;
   uint32     blocksize, inode_size, fbv_size;
+  int        i;
 
   dbprintf('f', "DfsCloseFileSystem (%d): Entering function\n", GetCurrentPid());
 
@@ -167,32 +166,35 @@ int DfsCloseFileSystem() {
     return DFS_FAIL;
   }
 
-  bcopy((char *)(&sb), block.data, sb.fsBlocksize); 
-  if ((blocksize = DiskWriteBlock(1 /*blocknum*/, &block)) == DISK_FAIL) {
+  bcopy((char *)(&sb), block.data, sizeof(sb)); 
+  if ((blocksize = DiskWriteBlock(1 * 2 /*blocknum*/, &block)) == DISK_FAIL) {
     dbprintf('f', "DfsCloseFileSystem (%d): Could not write file system back to disk\n", GetCurrentPid());
     return DFS_FAIL;
   }
   
-  // TODO write inode and fbv to disk as well?
-  // TODO need a for loop for inode and fbv as well in case they are larger than one block
-  bcopy((char *)inodes, inode_block.data, sb.fsBlocksize);
-  if ((inode_size = DfsWriteBlock(sb.inodeStartBlock, &inode_block)) == DFS_FAIL) {
-    dbprintf('f', "DfsCloseFileSystem (%d): Could not write inode blocks back to disk\n", GetCurrentPid());
-    return DFS_FAIL;
+  // write inodes  
+  for (i = 0; i < (sb.fbvStartBlock - sb.inodeStartBlock) * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+    bcopy((char *)(inodes + i * DISK_BLOCKSIZE), inode_block.data, DISK_BLOCKSIZE);
+    if ((inode_size = DiskWriteBlock(sb.inodeStartBlock * 2 + i, &inode_block)) == DFS_FAIL) {
+      dbprintf('f', "DfsCloseFileSystem (%d): Could not write inode blocks back to disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
   }
-
-  bcopy((char *)fbv, fbv_block.data, sb.fsBlocksize);
-  if ((fbv_size = DfsWriteBlock(sb.fbvStartBlock, &fbv_block)) == DFS_FAIL) {
-    dbprintf('f', "DfsCloseFileSystem (%d): Could not write fbv blocks back to disk\n", GetCurrentPid());
-    return DFS_FAIL;
-  }  
+  
+  // write fbv
+  for (i = 0; i < (sb.numFsBlocks / 32 / DISK_BLOCKSIZE) * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+    bcopy((char *)(fbv + i * DISK_BLOCKSIZE), fbv_block.data, DISK_BLOCKSIZE);
+    if ((fbv_size = DiskWriteBlock(sb.fbvStartBlock * 2 + i, &fbv_block)) == DFS_FAIL) {
+      dbprintf('f', "DfsCloseFileSystem (%d): Could not write fbv blocks back to disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+  }
 
   sb.valid = 0;
  
   dbprintf('f', "DfsCloseFileSystem (%d): Leaving function\n", GetCurrentPid());
   return DFS_SUCCESS;
 }
-
 
 //-----------------------------------------------------------------
 // DfsAllocateBlock allocates a DFS block for use. Remember to use 
@@ -250,7 +252,6 @@ int DfsAllocateBlock() {
   return fbv_idx * 32 + fbv_bit;
 }
 
-
 //-----------------------------------------------------------------
 // DfsFreeBlock deallocates a DFS block.
 //-----------------------------------------------------------------
@@ -286,7 +287,6 @@ int DfsFreeBlock(uint32 blocknum) {
   return DFS_SUCCESS;
 }
 
-
 //-----------------------------------------------------------------
 // DfsReadBlock reads an allocated DFS block from the disk
 // (which could span multiple physical disk blocks).  The block
@@ -296,17 +296,16 @@ int DfsFreeBlock(uint32 blocknum) {
 
 int DfsReadBlock(uint32 blocknum, dfs_block *b) {
   uint32 blocksize;
-  uint32 totalsize;
+  uint32 totalsize = 0;
   int i;
   //TODO what does it mean by it could span multiple physical disk blocks? 
   dbprintf('f', "DfsReadBlock (%d): Entering function\n", GetCurrentPid());
-  /*if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
+  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
     dbprintf('f', "DfsReadBlock (%d): Block was not previously allocated, cannot read\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
 
   for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
-    printf("reading blocknum %d\n", blocknum * 2 +i);  
     if ((blocksize = DiskReadBlock(blocknum * 2 + i, (disk_block *)(b + i * DISK_BLOCKSIZE))) == DISK_FAIL) {
       dbprintf('f', "DfsReadBlock (%d): Could not read block from disk\n", GetCurrentPid());
       return DFS_FAIL;
@@ -318,7 +317,6 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
   return totalsize;
 }
 
-
 //-----------------------------------------------------------------
 // DfsWriteBlock writes to an allocated DFS block on the disk
 // (which could span multiple physical disk blocks).  The block
@@ -327,26 +325,27 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
 //-----------------------------------------------------------------
 
 int DfsWriteBlock(uint32 blocknum, dfs_block *b){
-  uint32 blocksize; 
+  uint32 blocksize;
+  uint32 totalsize = 0; 
   int i;
 
   dbprintf('f', "DfsWriteBlock (%d): Entering function\n", GetCurrentPid());
-  /*if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
+  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
     dbprintf('f', "DfsWriteBlock (%d): Block was not previously allocated, cannot write\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
  
   for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {  
     if ((blocksize = DiskWriteBlock(blocknum * 2 + i, (disk_block *)(b + i * DISK_BLOCKSIZE))) == DISK_FAIL) {
       dbprintf('f', "DfsWriteBlock (%d): Could not write block to disk\n", GetCurrentPid());
       return DFS_FAIL;
     }
+    totalsize += blocksize;
   }
 
   dbprintf('f', "DfsWriteBlock (%d): Leaving function\n", GetCurrentPid());
-  return blocksize;
+  return totalsize;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Inode-based functions
@@ -383,7 +382,6 @@ int DfsInodeFilenameExists(char *filename) {
   dbprintf('f', "DfsInodeFilenameExists (%d): Leaving function\n", GetCurrentPid());
   return handle;
 }
-
 
 //-----------------------------------------------------------------
 // DfsInodeOpen: search the list of all inuse inodes for the 
@@ -433,7 +431,6 @@ int DfsInodeOpen(char *filename) {
   return handle;
 }
 
-
 //-----------------------------------------------------------------
 // DfsInodeDelete de-allocates any data blocks used by this inode, 
 // including the indirect addressing block if necessary, then mark 
@@ -472,7 +469,6 @@ int DfsInodeDelete(uint32 handle) {
   return DFS_SUCCESS;
 }
 
-
 //-----------------------------------------------------------------
 // DfsInodeReadBytes reads num_bytes from the file represented by 
 // the inode handle, starting at virtual byte start_byte, copying 
@@ -505,7 +501,6 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
   dbprintf('f', "DfsInodeReadBytes (%d): Leaving function\n", GetCurrentPid());
   return num_bytes;
 }
-
 
 //-----------------------------------------------------------------
 // DfsInodeWriteBytes writes num_bytes from the memory pointed to 
@@ -543,7 +538,6 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
   return num_bytes;
 }
 
-
 //-----------------------------------------------------------------
 // DfsInodeFilesize simply returns the size of an inode's file. 
 // This is defined as the maximum virtual byte number that has 
@@ -566,7 +560,6 @@ int DfsInodeFilesize(uint32 handle) {
   return inodes[handle].fileSize;
 }
 
-
 //-----------------------------------------------------------------
 // DfsInodeAllocateVirtualBlock allocates a new filesystem block 
 // for the given inode, storing its blocknumber at index 
@@ -578,8 +571,8 @@ int DfsInodeFilesize(uint32 handle) {
 //-----------------------------------------------------------------
 
 int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
-
-  int fs_block;
+  int fs_block, i;
+  uint32* addr;
 
   dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): Entering function\n", GetCurrentPid());
   
@@ -599,13 +592,21 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
   }
  
   // find an unused index in directAddr table
-  //directAddr[virtual_blocknum] = fs_block;
+  //inodes[handle].directAddr[virtual_blocknum] = fs_block;
 
+  if (virtual_blocknum < NUM_ADDR_BLOCK)
+    if (!inodes[handle].directAddr[virtual_blocknum])
+      inodes[handle].directAddr[virtual_blocknum] = fs_block;
+    else
+      return DFS_FAIL;
+  else
+  {
+    addr = inodes[handle].indirectAddr + ((virtual_blocknum - NUM_ADDR_BLOCK) * 4);
+    *addr = fs_block;
+  }
+  
   return DFS_SUCCESS;
-
 }
-
-
 
 //-----------------------------------------------------------------
 // DfsInodeTranslateVirtualToFilesys translates the 
@@ -614,7 +615,6 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
 //-----------------------------------------------------------------
 
 int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
-
   if (!sb.valid) {
     dbprintf('f', "DfsInodeFilesize (%d): file system is not valid\n", GetCurrentPid());
     return DFS_FAIL;
@@ -629,6 +629,5 @@ int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
   if (virtual_blocknum < NUM_ADDR_BLOCK)
     return inodes[handle].directAddr[virtual_blocknum];
 
-  return indirect_table[virtual_blocknum - NUM_ADDR_BLOCK];
-  
+  return inodes[handle].indirectAddr + ((virtual_blocknum - NUM_ADDR_BLOCK) * 4); // each entry is uint32??
 }

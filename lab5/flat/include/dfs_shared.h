@@ -37,6 +37,4 @@ typedef struct dfs_inode {
 #define DFS_FAIL -1
 #define DFS_SUCCESS 1
 
-
-
 #endif
