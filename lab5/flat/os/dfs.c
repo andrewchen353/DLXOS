@@ -104,11 +104,11 @@ int DfsOpenFileSystem() {
 // Copy the data from the block we just read into the superblock in memory
   bcopy(block.data, (char *)(&sb), blocksize);
 
-  printf("valid: %d\n", sb.valid);
-  printf("fsBlocksize: %d\n", sb.fsBlocksize);
-  printf("numFsBlocks: %d\n", sb.numFsBlocks);
-  printf("inodeStartBlock: %d\n", sb.inodeStartBlock);
-  printf("fbvStartBlock: %d\n", sb.fbvStartBlock);
+  dbprintf('f',"DfsOpenFileSystem (%d): filesystem valid: %d\n", GetCurrentPid(), sb.valid);
+  dbprintf('f',"DfsOpenFileSystem (%d): filesystem fsBlocksize: %d\n", GetCurrentPid(), sb.fsBlocksize);
+  dbprintf('f',"DfsOpenFileSystem (%d): filesystem numFsBlocks: %d\n", GetCurrentPid(), sb.numFsBlocks);
+  dbprintf('f',"DfsOpenFileSystem (%d): filesystem inodeStartBlock: %d\n", GetCurrentPid(), sb.inodeStartBlock);
+  dbprintf('f',"DfsOpenFileSystem (%d): filesystem fbvStartBlock: %d\n", GetCurrentPid(), sb.fbvStartBlock);
 
 // All other blocks are sized by virtual block size:
 // Read inodes
@@ -126,7 +126,9 @@ int DfsOpenFileSystem() {
   }
    
   // Read fbv 
-  for (i = 0; i < (sb.numFsBlocks / 32 / DISK_BLOCKSIZE) * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+  // TODO fix for loop
+  for (i = 0; i < (sb.numFsBlocks / 32 / DISK_BLOCKSIZE) * 2 * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+    printf("reading fbv block: %d\n", sb.fbvStartBlock * 2 + i);
     if ((fbv_size = DiskReadBlock(sb.fbvStartBlock * 2 + i, &fbv_block)) == DFS_FAIL) {
       dbprintf('f', "DfsOpenFileSystem (%d): Could not read fbv from disk\n", GetCurrentPid());
       return DFS_FAIL;
@@ -217,10 +219,10 @@ int DfsAllocateBlock() {
     return DFS_FAIL;
   }
   
-  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   for (i = 0; i < sb.numFsBlocks / 32; i++) {
     if (!fbv[i]) {
@@ -244,10 +246,10 @@ int DfsAllocateBlock() {
   else
     fbv[fbv_idx] = fbv[fbv_idx] & (negativeone << (fbv_bit + 1) | ((1 << fbv_bit) - 1));
 
-  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   dbprintf('f', "DfsAllocateBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -268,10 +270,10 @@ int DfsFreeBlock(uint32 blocknum) {
     return DFS_FAIL;
   }
 
-  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsFreeBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   fbv_idx = blocknum / 32;
   fbv_bit = blocknum - fbv_idx * 32;
@@ -279,10 +281,10 @@ int DfsFreeBlock(uint32 blocknum) {
 
   fbv[fbv_idx] |= fbv_mask;
 
-  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsFreeBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
   
   dbprintf('f', "DfsFreeBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -371,7 +373,7 @@ int DfsInodeFilenameExists(char *filename) {
   }
 
   for (i = 0; i < DFS_INODE_MAX_NUM; i++) {
-    if (inodes[i].inuse && dstrncmp(filename, inodes[i].filename, dstrlen(filename))) {
+    if (inodes[i].inuse && !dstrncmp(inodes[i].filename, filename, dstrlen(filename))) {
       handle = i;
       break;
     }
@@ -416,18 +418,20 @@ int DfsInodeOpen(char *filename) {
       if (!inodes[i].inuse) {
         handle = i;
         inodes[i].inuse = 1;
-        dstrncpy(inodes[i].filename, filename, dstrlen(filename));
+        dstrcpy(inodes[i].filename, filename);
         break;
       }
+    }
+
+    if (i == DFS_INODE_MAX_NUM) {
+      dbprintf('f', "DfsInodeOpen (%d): No more available inodes\n", GetCurrentPid());
+      return DFS_FAIL;
     }
 
     if (LockHandleRelease(f_lock) == SYNC_FAIL) {
       dbprintf('f', "DfsInodeOpen (%d): could not release the file lock\n", GetCurrentPid());
       return DFS_FAIL;
     }
-
-    dbprintf('f', "DfsInodeOpen (%d): No more available inodes\n", GetCurrentPid());
-    return DFS_FAIL;
   }
 
   dbprintf('f', "DfsInodeOpen (%d): Leaving function\n", GetCurrentPid());
@@ -679,7 +683,7 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     return DFS_FAIL;
   }
   
-  return DFS_SUCCESS;
+  return fs_block;
 }
 
 //-----------------------------------------------------------------
@@ -712,4 +716,37 @@ int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
   bcopy((char *)v_block.data, (char *)(&v_t), sb.fsBlocksize);
 
   return v_t.addr[((virtual_blocknum - NUM_ADDR_BLOCK) * 4)]; // each entry is uint32??
+}
+
+void InodeTest() {
+  uint32 f_handle;
+  uint32 block_num;
+  uint32 i;
+
+  if ((f_handle = DfsInodeOpen("test.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode\n");
+    GracefulExit();
+  }
+  if ((f_handle = DfsInodeOpen("test.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode\n");
+    GracefulExit();
+  }
+
+  // Allocate into indirect address space
+  for (i = 0; i < 13; i++) {
+    // TODO why can't this allocate?
+    if ((block_num = DfsInodeAllocateVirtualBlock(f_handle, i)) == DFS_FAIL) {
+      printf("RunOSTests: failed to allocate virtual blocks\n");
+      GracefulExit();
+    }
+    printf("Allocated block: %d\n", block_num);
+  }
+  
+  // TODO why no print
+  printf("handle: %d\n", f_handle);
+
+  if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
+    printf("RunOSTests: failed to delete inode\n");
+    GracefulExit();
+  }
 }

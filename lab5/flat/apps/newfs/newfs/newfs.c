@@ -85,10 +85,15 @@ Printf("\nInodes\n");
 Printf("\nFBV\n");
   // write free block vector to disk 
   // TODO change b to be all 1s
+  // TODO why no write all F's?
+  for (i = 0; i < DFS_BLOCKSIZE; i++)
+    b->data[i] = 0xFFFFFFFF;
+  //bcopy(~0, b->data, sizeof());
   for(i = 20; i < 22; i++)
     NewfsWriteBlock(i, b);
 
 Printf("\nData\n");
+  bzero((char*)b, sizeof(dfs_block));
   // write data blocks to disk
   for(i = 22; i < sb.numFsBlocks; i++)
     NewfsWriteBlock(i, b);
@@ -104,7 +109,7 @@ int NewfsWriteBlock(uint32 blocknum, dfs_block *b) {
 
   if (disk_write_block(phys_block1, b->data) != DISK_SUCCESS)
     return DISK_FAIL;
-  if (disk_write_block(phys_block2, (b + disk_blocksize())->data) != DISK_SUCCESS)
+  if (disk_write_block(phys_block2, b->data + disk_blocksize()) != DISK_SUCCESS)
     return DISK_FAIL;
   return DISK_SUCCESS;
 }

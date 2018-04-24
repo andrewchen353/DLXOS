@@ -23,4 +23,6 @@ int DfsInodeFilesize(uint32 handle);
 int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum);
 int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum);
 
+void InodeTest();
+
 #endif
