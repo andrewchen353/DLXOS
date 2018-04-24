@@ -444,8 +444,6 @@ int DfsInodeOpen(char *filename) {
 
 int DfsInodeDelete(uint32 handle) {
   int i;
-  //int fbv_idx, block_bit;
-  //uint32 mask;
   dfs_block block;
   v_table v_t;
 
@@ -564,21 +562,24 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
     return DFS_FAIL;
   }
 
-  // BIG OL' TODO
-  /*index = start_byte / sb.fsBlocksize;
-  if (start_byte % sb.fsBlocksize) {
-    if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
-      dbprintf('f', "DfsInodeWriteBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
-      return DFS_FAIL;
-    }
-    bcopy(block.data + start_byte % sb.fsBlocksize, (char *)mem, num_bytes);
-  } else {
-    bcopy((char *)mem, block.data + start_byte % sb.fsBlocksize, num_bytes);
-    if ((size = DfsWriteBlock(index, &block)) == DFS_FAIL){
-      dbprintf('f', "DfsInodeWriteBytes (%d): Could not write the block to the disk\n", GetCurrentPid());
-      return DFS_FAIL;
-    }
-  }*/
+  if (!inodes[handle].inuse) {
+    dbprintf('f', "DfsInodeWriteBytes (%d): inode trying to access is not in use\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  index = start_byte / sb.fsBlocksize; // TODO fix index calculation, or is it?
+  // TODO call translate? Can number of bytes be more than one DFS block?
+  if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
+    dbprintf('f', "DfsInodeWriteBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
+  bcopy((char *)mem, block.data + start_byte % sb.fsBlocksize, num_bytes);
+
+  if ((size = DfsWriteBlock(index, &block)) == DFS_FAIL){
+    dbprintf('f', "DfsInodeWriteBytes (%d): Could not write the block to the disk\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
 
   return num_bytes;
 }
@@ -630,6 +631,11 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     return DFS_FAIL;
   }
 
+  if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not acquire the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+
   // check if fs_block is valid
   if((fs_block = DfsAllocateBlock()) == DFS_FAIL) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): unable to allocate fs block\n", GetCurrentPid());
@@ -666,6 +672,11 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
       dbprintf('f', "DfsInodeAllocate (%d): Failed to write block\n", GetCurrentPid());
       return DFS_FAIL;
     }
+  }
+
+  if (LockHandleRelease(f_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not release the file lock\n", GetCurrentPid());
+    return DFS_FAIL;
   }
   
   return DFS_SUCCESS;
