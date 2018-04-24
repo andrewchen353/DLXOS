@@ -84,6 +84,7 @@ Printf("\nInodes\n");
   
 Printf("\nFBV\n");
   // write free block vector to disk 
+  // TODO change b to be all 1s
   for(i = 20; i < 22; i++)
     NewfsWriteBlock(i, b);
 

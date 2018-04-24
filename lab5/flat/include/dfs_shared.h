@@ -19,6 +19,10 @@ typedef struct dfs_block {
   char data[DFS_BLOCKSIZE];
 } dfs_block;
 
+typedef struct v_table {
+  uint32 addr[DFS_BLOCKSIZE / 4];
+} v_table;
+
 typedef struct dfs_inode {
   // STUDENT: put inode structure internals here
   // IMPORTANT: sizeof(dfs_inode) MUST return 96 in order to fit in enough
