@@ -18,7 +18,7 @@ void main (int argc, char *argv[])
 {
 	// STUDENT: put your code here. Follow the guidelines below. They are just the main steps. 
 	// You need to think of the finer details. You can use bzero() to zero out bytes in memory
-  int i;
+  int i, occupied;
 
   //Initializations and argc check
   if(argc != 1)
@@ -86,11 +86,31 @@ Printf("\nFBV\n");
   // write free block vector to disk 
   // TODO change b to be all 1s
   // TODO why no write all F's?
-  for (i = 0; i < DFS_BLOCKSIZE; i++)
-    b->data[i] = 0xFFFFFFFF;
+  occupied = 44;
+  for (i = 0; i < DFS_BLOCKSIZE; i++) {
+    if (occupied >= 8)  {
+      b->data[i] = 0x0;
+      occupied -= 8;
+    } else if (8 > occupied && occupied != 0) {
+      b->data[i] = 0xFF >> occupied;
+      occupied = 0;
+    } else 
+      b->data[i] = 0xFF;
+    //Printf("%x\n", b->data[i]);
+  }
+  NewfsWriteBlock(20, b);
+  for (i = 0; i < DFS_BLOCKSIZE; i++){
+    b->data[i] = 0xFF;
+    //Printf("%x\n", b->data[i]);
+  }
+  // FIXME FIXME FIXME FIXME DR. FIXME
+  disk_write_block(41, (char *)b->data);
+  NewfsWriteBlock(21, b);
+  disk_write_block(43, (char *)b->data);
+
   //bcopy(~0, b->data, sizeof());
-  for(i = 20; i < 22; i++)
-    NewfsWriteBlock(i, b);
+  //for(i = 20; i < 22; i++)
+    //NewfsWriteBlock(i, b);
 
 Printf("\nData\n");
   bzero((char*)b, sizeof(dfs_block));
@@ -104,12 +124,12 @@ Printf("\nData\n");
 }
 
 int NewfsWriteBlock(uint32 blocknum, dfs_block *b) {
-  int phys_block1 = blocknum * 2;
-  int phys_block2 = phys_block1 + 1;
+  uint32 phys_block1 = blocknum * 2;
+  uint32 phys_block2 = phys_block1 + 1;
 
-  if (disk_write_block(phys_block1, b->data) != DISK_SUCCESS)
+  if (disk_write_block(phys_block1, (char *)b->data) != DISK_SUCCESS)
     return DISK_FAIL;
-  if (disk_write_block(phys_block2, b->data + disk_blocksize()) != DISK_SUCCESS)
+  if (disk_write_block(phys_block2, (char *)(&(b->data[disk_blocksize()]))) != DISK_SUCCESS)
     return DISK_FAIL;
   return DISK_SUCCESS;
 }

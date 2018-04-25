@@ -16,7 +16,8 @@ static inline uint32 invert(uint32 n) { return n ^ negativeone; }
 
 // You have already been told about the most likely places where you should use locks. You may use 
 // additional locks if it is really necessary.
-static lock_t f_lock; // lock for allocation and free 
+static lock_t f_lock; // fbv lock
+static lock_t i_lock; // inode lock 
 
 // STUDENT: put your file system level functions below.
 // Some skeletons are provided. You can implement additional functions.
@@ -40,14 +41,19 @@ void DfsModuleInit() {
   sb.valid = 0;
 
   if ((f_lock = LockCreate()) == SYNC_FAIL) {
-    printf("DfsModuleInit (%d): Could not create the file lock\n", GetCurrentPid());
+    printf("DfsModuleInit (%d): Could not create the fbv lock\n", GetCurrentPid());
+    GracefulExit();
+  }
+
+  if ((i_lock = LockCreate()) == SYNC_FAIL) {
+    printf("DfsModuleInit (%d): Could not create the inode lock\n", GetCurrentPid());
     GracefulExit();
   }
 
   for (i = 0; i < DFS_INODE_MAX_NUM; i++)
     inodes[i].inuse = 0;
   for (i = 0; i < DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32; i++)
-    fbv[i] = 0;
+    fbv[i] = 0xFFFFFFFF;
 
   DfsOpenFileSystem(); 
 
@@ -410,10 +416,10 @@ int DfsInodeOpen(char *filename) {
   handle = DfsInodeFilenameExists(filename);
   
   if (handle == DFS_FAIL) {
-    if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
-      dbprintf('f', "DfsInodeOpen (%d): could not acquire the file lock\n", GetCurrentPid());
+    /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+      dbprintf('f', "DfsInodeOpen (%d): could not acquire the inode lock\n", GetCurrentPid());
       return DFS_FAIL;
-    }
+    }*/
 
     for (i = 0; i < DFS_INODE_MAX_NUM; i++) { //TODO check to make sure we can use this constant
       if (!inodes[i].inuse) {
@@ -429,10 +435,10 @@ int DfsInodeOpen(char *filename) {
       return DFS_FAIL;
     }
 
-    if (LockHandleRelease(f_lock) == SYNC_FAIL) {
-      dbprintf('f', "DfsInodeOpen (%d): could not release the file lock\n", GetCurrentPid());
+    /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
+      dbprintf('f', "DfsInodeOpen (%d): could not release the inode lock\n", GetCurrentPid());
       return DFS_FAIL;
-    }
+    }*/
   }
 
   dbprintf('f', "DfsInodeOpen (%d): Leaving function\n", GetCurrentPid());
@@ -462,10 +468,10 @@ int DfsInodeDelete(uint32 handle) {
     return DFS_FAIL;
   }
 
-  if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
-    dbprintf('f', "DfsInodeDelete (%d): could not acquire the file lock\n", GetCurrentPid());
+  /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeDelete (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   for (i = 0; i < NUM_ADDR_BLOCK; i++) {
     if (inodes[handle].directAddr[i]) {
@@ -506,10 +512,10 @@ int DfsInodeDelete(uint32 handle) {
 
   inodes[handle].inuse = 0;
 
-  if (LockHandleRelease(f_lock) == SYNC_FAIL) {
-    dbprintf('f', "DfsInodeDelete (%d): could not release the file lock\n", GetCurrentPid());
+  /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeDelete (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
   
   dbprintf('f', "DfsInodeDelete (%d): Leaving function\n", GetCurrentPid());
   return DFS_SUCCESS;
@@ -636,10 +642,10 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     return DFS_FAIL;
   }
 
-  if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
-    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not acquire the file lock\n", GetCurrentPid());
+  /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   // check if fs_block is valid
   if((fs_block = DfsAllocateBlock()) == DFS_FAIL) {
@@ -679,10 +685,10 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     }
   }
 
-  if (LockHandleRelease(f_lock) == SYNC_FAIL) {
-    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not release the file lock\n", GetCurrentPid());
+  /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
   
   return fs_block;
 }
@@ -725,11 +731,11 @@ void InodeTest() {
   uint32 i;
 
   if ((f_handle = DfsInodeOpen("test.txt")) == DFS_FAIL) {
-    printf("RunOSTests: failed to open new inode\n");
+    printf("RunOSTests: failed to open new inode 1\n");
     GracefulExit();
   }
   if ((f_handle = DfsInodeOpen("test.txt")) == DFS_FAIL) {
-    printf("RunOSTests: failed to open new inode\n");
+    printf("RunOSTests: failed to open new inode 2\n");
     GracefulExit();
   }
 
@@ -745,6 +751,10 @@ void InodeTest() {
   
   // TODO why no print
   printf("handle: %d\n", f_handle);
+  if ((f_handle = DfsInodeOpen("test2.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode\n");
+    GracefulExit();
+  }
 
   if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
     printf("RunOSTests: failed to delete inode\n");
