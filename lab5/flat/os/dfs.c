@@ -302,7 +302,7 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
   uint32 blocksize;
   uint32 totalsize = 0;
   int i;
-  //TODO what does it mean by it could span multiple physical disk blocks? 
+  
   dbprintf('f', "DfsReadBlock (%d): Entering function\n", GetCurrentPid());
   if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
     dbprintf('f', "DfsReadBlock (%d): Block was not previously allocated, cannot read\n", GetCurrentPid());
@@ -310,6 +310,7 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
   }
 
   for (i = 0; i < (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
+    // TODO replace *2
     if ((blocksize = DiskReadBlock(blocknum * 2 + i, (disk_block *)(b + i * DISK_BLOCKSIZE))) == DISK_FAIL) {
       dbprintf('f', "DfsReadBlock (%d): Could not read block from disk\n", GetCurrentPid());
       return DFS_FAIL;
