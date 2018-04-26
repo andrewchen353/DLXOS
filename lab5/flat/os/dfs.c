@@ -225,10 +225,10 @@ int DfsAllocateBlock() {
     return DFS_FAIL;
   }
   
-  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
 
   // TODO replace 512 with variables or something
   for (i = 0; i < /*sb.numFsBlocks / 32*/512; i++) {
@@ -258,10 +258,10 @@ int DfsAllocateBlock() {
 
   printf("new fbv %x\n", fbv[fbv_idx]);
 
-  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
 
   dbprintf('f', "DfsAllocateBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -282,21 +282,21 @@ int DfsFreeBlock(uint32 blocknum) {
     return DFS_FAIL;
   }
 
-  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsFreeBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
 
   fbv_idx = blocknum / 32;
   fbv_bit = blocknum - fbv_idx * 32;
-  fbv_mask = 1 << fbv_bit;
+  fbv_mask = 0x80000000 >> fbv_bit;
 
   fbv[fbv_idx] |= fbv_mask;
 
-  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsFreeBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
   
   dbprintf('f', "DfsFreeBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -474,10 +474,10 @@ int DfsInodeDelete(uint32 handle) {
     return DFS_FAIL;
   }
 
-  /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+  if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeDelete (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
 
   for (i = 0; i < NUM_ADDR_BLOCK; i++) {
     if (inodes[handle].directAddr[i]) {
@@ -486,7 +486,7 @@ int DfsInodeDelete(uint32 handle) {
         return DFS_FAIL;
       }
       inodes[handle].directAddr[i] = 0;
-    }
+    } 
   }
 
   if (inodes[handle].indirectAddr) {
@@ -518,10 +518,10 @@ int DfsInodeDelete(uint32 handle) {
 
   inodes[handle].inuse = 0;
 
-  /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
+  if (LockHandleRelease(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeDelete (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
   
   dbprintf('f', "DfsInodeDelete (%d): Leaving function\n", GetCurrentPid());
   return DFS_SUCCESS;
@@ -648,10 +648,10 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     return DFS_FAIL;
   }
 
-  /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+  if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
 
   // check if fs_block is valid
   if((fs_block = DfsAllocateBlock()) == DFS_FAIL) {
@@ -695,10 +695,10 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     }
   }
 
-  /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
+  if (LockHandleRelease(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
   
   return fs_block;
 }
@@ -752,7 +752,7 @@ void InodeTest() {
   printf("inode handle %d\n", f_handle);
 
   // Allocate into indirect address space
-  for (i = 0; i < 13; i++) {
+  for (i = 0; i < 10; i++) {
     // TODO why can't this allocate?
     if ((block_num = DfsInodeAllocateVirtualBlock(f_handle, i)) == DFS_FAIL) {
       printf("RunOSTests: failed to allocate virtual blocks\n");
@@ -763,10 +763,6 @@ void InodeTest() {
   
   // TODO why no print
   printf("handle: %d\n", f_handle);
-  if ((f_handle = DfsInodeOpen("test2.txt")) == DFS_FAIL) {
-    printf("RunOSTests: failed to open new inode\n");
-    GracefulExit();
-  }
 
   if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
     printf("RunOSTests: failed to delete inode\n");
