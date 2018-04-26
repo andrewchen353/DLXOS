@@ -230,27 +230,33 @@ int DfsAllocateBlock() {
     return DFS_FAIL;
   }*/
 
-  for (i = 0; i < sb.numFsBlocks / 32; i++) {
-    if (!fbv[i]) {
+  // TODO replace 512 with variables or something
+  for (i = 0; i < /*sb.numFsBlocks / 32*/512; i++) {
+    if (fbv[i]) {
       fbv_bunch = fbv[i];
       fbv_idx = i;
       break;
     }
   }
 
+  printf("idx %d, bunch %x\n", fbv_idx, fbv_bunch);
+
   for (j = 0; j < 32; j++) {
-    if (fbv_bunch & 0x1) {
+    if (fbv_bunch & 0x80000000) {
       fbv_bit = j;
       break;
     }
-    fbv_bunch = fbv_bunch >> 0x1;
+    fbv_bunch = fbv_bunch << 0x1;
   }
+  printf("new bunch %x, bit %d\n", fbv_bunch, fbv_bit);
   
   // set allocated page bit to 0
   if (fbv_bit == 31)
     fbv[fbv_idx] = 0x0;
   else
-    fbv[fbv_idx] = fbv[fbv_idx] & (negativeone << (fbv_bit + 1) | ((1 << fbv_bit) - 1));
+    fbv[fbv_idx] = fbv[fbv_idx] & ~(0x1 << (31 - fbv_bit));//(negativeone >> (fbv_bit + 1) | ((1 >> fbv_bit) - 1));
+
+  printf("new fbv %x\n", fbv[fbv_idx]);
 
   /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not release the file lock\n", GetCurrentPid());
@@ -652,13 +658,17 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): unable to allocate fs block\n", GetCurrentPid());
     return DFS_FAIL;
   }
+
+  printf("handle %d, block num allocated %d\n", handle, fs_block);
  
   // find an unused index in directAddr table
   if (virtual_blocknum < NUM_ADDR_BLOCK)
     if (!inodes[handle].directAddr[virtual_blocknum])
       inodes[handle].directAddr[virtual_blocknum] = fs_block;
-    else
+    else {
+      dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): block trying to allocate is not available\n", GetCurrentPid());
       return DFS_FAIL;
+    }
   else
   {
     if (!inodes[handle].indirectAddr) {
@@ -738,6 +748,8 @@ void InodeTest() {
     printf("RunOSTests: failed to open new inode 2\n");
     GracefulExit();
   }
+  
+  printf("inode handle %d\n", f_handle);
 
   // Allocate into indirect address space
   for (i = 0; i < 13; i++) {
