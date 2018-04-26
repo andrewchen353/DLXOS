@@ -225,10 +225,10 @@ int DfsAllocateBlock() {
     return DFS_FAIL;
   }
   
-  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   // TODO replace 512 with variables or something
   for (i = 0; i < /*sb.numFsBlocks / 32*/512; i++) {
@@ -254,14 +254,14 @@ int DfsAllocateBlock() {
   if (fbv_bit == 31)
     fbv[fbv_idx] = 0x0;
   else
-    fbv[fbv_idx] = fbv[fbv_idx] & ~(0x1 << (31 - fbv_bit));//(negativeone >> (fbv_bit + 1) | ((1 >> fbv_bit) - 1));
+    fbv[fbv_idx] = fbv[fbv_idx] & invert(0x1 << (31 - fbv_bit));//(negativeone >> (fbv_bit + 1) | ((1 >> fbv_bit) - 1));
 
   printf("new fbv %x\n", fbv[fbv_idx]);
 
-  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   dbprintf('f', "DfsAllocateBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -282,10 +282,11 @@ int DfsFreeBlock(uint32 blocknum) {
     return DFS_FAIL;
   }
 
-  if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsFreeBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
+  printf("BLOCKNUM %d\n", blocknum);
 
   fbv_idx = blocknum / 32;
   fbv_bit = blocknum - fbv_idx * 32;
@@ -293,10 +294,10 @@ int DfsFreeBlock(uint32 blocknum) {
 
   fbv[fbv_idx] |= fbv_mask;
 
-  if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
     dbprintf('f', "DfsFreeBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
   
   dbprintf('f', "DfsFreeBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -316,8 +317,9 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
   int i;
   
   dbprintf('f', "DfsReadBlock (%d): Entering function\n", GetCurrentPid());
-  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
-    dbprintf('f', "DfsReadBlock (%d): Block was not previously allocated, cannot read\n", GetCurrentPid());
+  printf("fbv value %x\n", fbv[blocknum / 32]);
+  if ((fbv[blocknum / 32] & (0x80000000 >> (blocknum % 32)))) {
+    dbprintf('f', "DfsReadBlock (%d): Block (%d) was not previously allocated, cannot read\n", GetCurrentPid(), blocknum);
     return DFS_FAIL;
   }
 
@@ -347,8 +349,9 @@ int DfsWriteBlock(uint32 blocknum, dfs_block *b){
   int i;
 
   dbprintf('f', "DfsWriteBlock (%d): Entering function\n", GetCurrentPid());
-  if (!(fbv[blocknum / 32] & (1 < blocknum % 32))) {
-    dbprintf('f', "DfsWriteBlock (%d): Block was not previously allocated, cannot write\n", GetCurrentPid());
+  printf("fbv value %x\n", fbv[blocknum / 32]);
+  if ((fbv[blocknum / 32] & (0x80000000 >> (blocknum % 32)))) {
+    dbprintf('f', "DfsWriteBlock (%d): Block (%d) was not previously allocated, cannot write\n", GetCurrentPid(), blocknum);
     return DFS_FAIL;
   }
  
@@ -474,10 +477,10 @@ int DfsInodeDelete(uint32 handle) {
     return DFS_FAIL;
   }
 
-  if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+  /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeDelete (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   for (i = 0; i < NUM_ADDR_BLOCK; i++) {
     if (inodes[handle].directAddr[i]) {
@@ -494,9 +497,13 @@ int DfsInodeDelete(uint32 handle) {
       dbprintf('f', "DfsInodeDelete (%d): Failed to read block\n", GetCurrentPid());
       return DFS_FAIL;
     }
-    bcopy((char *)block.data, (char *)(&v_t), sb.fsBlocksize);
+    bcopy((char *)block.data, (char *)v_t.addr, sb.fsBlocksize);
+    printf("indirect %d\n", inodes[handle].indirectAddr);
+    /*for (i = 0; i < (sb.fsBlocksize / 4); i++) 
+      printf("(%d) %d\n", i, v_t.addr[i]);*/
     for (i = 0; i < (sb.fsBlocksize / 4); i++) {
-      if (v_t.addr[i]) {
+      // TODO get rid of 512
+      if (v_t.addr[i] && ((int)v_t.addr[i]) > 0 && v_t.addr[i] < 512) {
         if (DfsFreeBlock(v_t.addr[i]) == DFS_FAIL) {
           dbprintf('f', "DfsInodeDelete (%d): Failed to free block\n", GetCurrentPid());
           return DFS_FAIL;
@@ -504,7 +511,7 @@ int DfsInodeDelete(uint32 handle) {
         v_t.addr[i] = 0;
       }
     }
-    bcopy((char *)(&v_t), (char *)block.data, sb.fsBlocksize);
+    bcopy((char *)v_t.addr, (char *)block.data, sb.fsBlocksize);
     if (DfsWriteBlock(inodes[handle].indirectAddr, &block) == DFS_FAIL) {
       dbprintf('f', "DfsInodeDelete (%d): Failed to write block\n", GetCurrentPid());
       return DFS_FAIL;
@@ -518,10 +525,10 @@ int DfsInodeDelete(uint32 handle) {
 
   inodes[handle].inuse = 0;
 
-  if (LockHandleRelease(i_lock) == SYNC_FAIL) {
+  /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeDelete (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
   
   dbprintf('f', "DfsInodeDelete (%d): Leaving function\n", GetCurrentPid());
   return DFS_SUCCESS;
@@ -633,7 +640,7 @@ int DfsInodeFilesize(uint32 handle) {
 // block number on success.
 //-----------------------------------------------------------------
 int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
-  int fs_block, indirect_table;
+  int fs_block, indirect_table, i;
   dfs_block table;
   v_table v_t;
 
@@ -648,10 +655,10 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     return DFS_FAIL;
   }
 
-  if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+  /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
 
   // check if fs_block is valid
   if((fs_block = DfsAllocateBlock()) == DFS_FAIL) {
@@ -676,29 +683,38 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
         dbprintf('f', "DfsInodeAllocate (%d): Failed to allocate block\n", GetCurrentPid());
         return DFS_FAIL;
       }
-      inodes[handle].indirectAddr = indirect_table; 
+      inodes[handle].indirectAddr = fs_block;
+      bzero((char *)v_t.addr, sb.fsBlocksize);
+      bcopy((char *)v_t.addr, (char *)table.data, sb.fsBlocksize);
+      if ((DfsWriteBlock(inodes[handle].indirectAddr, &table)) == DFS_FAIL) {
+        dbprintf('f', "DfsInodeAllocate (%d): Failed to write block\n", GetCurrentPid());
+        return DFS_FAIL;
+      } 
+    } else {
+      indirect_table = fs_block;
     }
     if ((DfsReadBlock(inodes[handle].indirectAddr, &table)) == DFS_FAIL) {
       dbprintf('f', "DfsInodeAllocate (%d): Failed to read block\n", GetCurrentPid());
       return DFS_FAIL;
     }
-    bcopy((char *)table.data, (char *)(&v_t), sb.fsBlocksize);
-    if (v_t.addr[((virtual_blocknum - NUM_ADDR_BLOCK) * 4)]) {
+    bcopy((char *)table.data, (char *)v_t.addr, sb.fsBlocksize);
+    // TODO get rid of 512
+    if (v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] > 0 && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] < 512) {
       dbprintf('f', "DfsInodeAllocate (%d): Invalid address\n", GetCurrentPid());
       return DFS_FAIL;
     }
-    v_t.addr[((virtual_blocknum - NUM_ADDR_BLOCK) * 4)] = fs_block;
-    bcopy((char *)(&v_t), (char *)table.data, sb.fsBlocksize);
+    v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] = indirect_table;
+    bcopy((char *)v_t.addr, (char *)table.data, sb.fsBlocksize);
     if ((DfsWriteBlock(inodes[handle].indirectAddr, &table)) == DFS_FAIL) {
       dbprintf('f', "DfsInodeAllocate (%d): Failed to write block\n", GetCurrentPid());
       return DFS_FAIL;
     }
   }
 
-  if (LockHandleRelease(i_lock) == SYNC_FAIL) {
+  /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }
+  }*/
   
   return fs_block;
 }
@@ -752,7 +768,7 @@ void InodeTest() {
   printf("inode handle %d\n", f_handle);
 
   // Allocate into indirect address space
-  for (i = 0; i < 10; i++) {
+  for (i = 0; i < 266; i++) {
     // TODO why can't this allocate?
     if ((block_num = DfsInodeAllocateVirtualBlock(f_handle, i)) == DFS_FAIL) {
       printf("RunOSTests: failed to allocate virtual blocks\n");
