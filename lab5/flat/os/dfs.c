@@ -556,12 +556,15 @@ int DfsInodeDelete(uint32 handle) {
     /*for (i = 0; i < (sb.fsBlocksize / 4); i++) 
       printf("(%d) %d\n", i, v_t.addr[i]);*/
     for (i = 0; i < (sb.fsBlocksize / 4); i++) {
-      if (v_t.addr[i] && ((int)v_t.addr[i]) > 0 && v_t.addr[i] < sb.numFsBlocks / 32) {
+      printf("(%d) value %u\n", i, v_t.addr[i]);
+      if (v_t.addr[i] && ((int)v_t.addr[i]) > 0 && ((int)v_t.addr[i]) < sb.numFsBlocks / 32) {
         if (DfsFreeBlock(v_t.addr[i]) == DFS_FAIL) {
           dbprintf('f', "DfsInodeDelete (%d): Failed to free block\n", GetCurrentPid());
           return DFS_FAIL;
        }
         v_t.addr[i] = 0;
+      } else {
+        printf("NOPE %d\n", i);
       }
     }
     bcopy((char *)v_t.addr, (char *)block.data, sb.fsBlocksize);
@@ -601,7 +604,7 @@ int DfsInodeDelete(uint32 handle) {
 //-----------------------------------------------------------------
 
 int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
-  uint32    index, size;
+  uint32    index, size, bytes_read, blocknum;
   dfs_block block;  
 
   dbprintf('f', "DfsInodeReadBytes (%d): Entering function\n", GetCurrentPid());
@@ -615,15 +618,27 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
   }
 
   index = start_byte / sb.fsBlocksize;
-  // TODO call translate? Can number of bytes be more than one DFS block?
-  if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
-    dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
-    return DFS_FAIL;
+  bytes_read = 0;
+  while (num_bytes > 0) {
+    blocknum = DfsInodeTranslateVirtualToFilesys(handle, index);
+    if ((size = DfsReadBlock(blocknum, &block)) == DFS_FAIL){
+      dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+    if (num_bytes + start_byte % sb.fsBlocksize>= sb.fsBlocksize)
+      size = sb.fsBlocksize - start_byte % sb.fsBlocksize;
+    else
+      size = num_bytes;
+
+    bcopy(block.data + start_byte % sb.fsBlocksize, (char *)(mem + bytes_read), size);
+    num_bytes -= size;
+    bytes_read += size;
+    start_byte = 0;
+    index++;
   }
-  bcopy(block.data + start_byte % sb.fsBlocksize, (char *)mem, num_bytes);
-    
+     
   dbprintf('f', "DfsInodeReadBytes (%d): Leaving function\n", GetCurrentPid());
-  return num_bytes;
+  return bytes_read;
 }
 
 //-----------------------------------------------------------------
@@ -636,7 +651,7 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
 //-----------------------------------------------------------------
 
 int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
-  uint32    index, size;
+  uint32    index, size, bytes_written, blocknum;
   dfs_block block;
 
   dbprintf('f', "DfsInodeWriteBytes (%d): Entering function\n", GetCurrentPid());
@@ -651,20 +666,34 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
   }
 
   index = start_byte / sb.fsBlocksize;
-  // TODO call translate? Can number of bytes be more than one DFS block?
-  if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
-    dbprintf('f', "DfsInodeWriteBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
-    return DFS_FAIL;
+  bytes_written = 0;
+  while (num_bytes > 0) {
+    blocknum = DfsInodeTranslateVirtualToFilesys(handle, index);
+    if ((size = DfsReadBlock(blocknum, &block)) == DFS_FAIL){
+      dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+    if (num_bytes + start_byte % sb.fsBlocksize >= sb.fsBlocksize)
+      size = sb.fsBlocksize - start_byte % sb.fsBlocksize;
+    else
+      size = num_bytes;
+
+    bcopy((char *)(mem + bytes_written), block.data + start_byte % sb.fsBlocksize, size);
+
+    if ((DfsWriteBlock(index, &block)) == DFS_FAIL){
+      dbprintf('f', "DfsInodeWriteBytes (%d): Could not write the block to the disk\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+
+    num_bytes -= size;
+    bytes_written += size;
+    start_byte = 0;
+    index++;
   }
 
-  bcopy((char *)mem, block.data + start_byte % sb.fsBlocksize, num_bytes);
+  inodes[handle].fileSize += bytes_written; 
 
-  if ((size = DfsWriteBlock(index, &block)) == DFS_FAIL){
-    dbprintf('f', "DfsInodeWriteBytes (%d): Could not write the block to the disk\n", GetCurrentPid());
-    return DFS_FAIL;
-  }
-
-  return num_bytes;
+  return bytes_written;
 }
 
 //-----------------------------------------------------------------
@@ -763,11 +792,13 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
       return DFS_FAIL;
     }
     bcopy((char *)table.data, (char *)v_t.addr, sb.fsBlocksize);
-    if (v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] > 0 && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] < sb.numFsBlocks / 32) {
+    if (v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] && (int)v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] > 0 && (int)v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] < sb.numFsBlocks / 32) {
       dbprintf('f', "DfsInodeAllocate (%d): Invalid address\n", GetCurrentPid());
       return DFS_FAIL;
     }
+    printf("value = %u\n",  v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK]);
     v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] = indirect_table;
+    printf("v block allocated = %d\n", virtual_blocknum - NUM_ADDR_BLOCK);
     bcopy((char *)v_t.addr, (char *)table.data, sb.fsBlocksize);
     if ((DfsWriteBlock(inodes[handle].indirectAddr, &table)) == DFS_FAIL) {
       dbprintf('f', "DfsInodeAllocate (%d): Failed to write block\n", GetCurrentPid());
