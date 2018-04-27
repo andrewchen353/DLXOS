@@ -249,8 +249,7 @@ int DfsAllocateBlock() {
   }
   dbprintf('f', "-------------------DfsAllocateBlock ACQUIRED f_sem-------------------\n");*/
 
-  // TODO replace 512 with variables or something
-  for (i = 0; i < /*sb.numFsBlocks / 32*/512; i++) {
+  for (i = 0; i < sb.numFsBlocks / 32; i++) {
     if (fbv[i]) {
       fbv_bunch = fbv[i];
       fbv_idx = i;
@@ -557,8 +556,7 @@ int DfsInodeDelete(uint32 handle) {
     /*for (i = 0; i < (sb.fsBlocksize / 4); i++) 
       printf("(%d) %d\n", i, v_t.addr[i]);*/
     for (i = 0; i < (sb.fsBlocksize / 4); i++) {
-      // TODO get rid of 512
-      if (v_t.addr[i] && ((int)v_t.addr[i]) > 0 && v_t.addr[i] < 512) {
+      if (v_t.addr[i] && ((int)v_t.addr[i]) > 0 && v_t.addr[i] < sb.numFsBlocks / 32) {
         if (DfsFreeBlock(v_t.addr[i]) == DFS_FAIL) {
           dbprintf('f', "DfsInodeDelete (%d): Failed to free block\n", GetCurrentPid());
           return DFS_FAIL;
@@ -765,8 +763,7 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
       return DFS_FAIL;
     }
     bcopy((char *)table.data, (char *)v_t.addr, sb.fsBlocksize);
-    // TODO get rid of 512
-    if (v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] > 0 && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] < 512) {
+    if (v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] > 0 && v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] < sb.numFsBlocks / 32) {
       dbprintf('f', "DfsInodeAllocate (%d): Invalid address\n", GetCurrentPid());
       return DFS_FAIL;
     }
