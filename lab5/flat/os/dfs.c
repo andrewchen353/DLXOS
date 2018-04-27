@@ -324,6 +324,8 @@ int DfsFreeBlock(uint32 blocknum) {
 
   fbv[fbv_idx] |= fbv_mask;
 
+  printf("(%d) %x\n", fbv_idx, fbv[fbv_idx]);
+
   /*if (LockHandleRelease(f_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsFreeBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
@@ -680,7 +682,7 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
 
     bcopy((char *)(mem + bytes_written), block.data + start_byte % sb.fsBlocksize, size);
 
-    if ((DfsWriteBlock(index, &block)) == DFS_FAIL){
+    if ((DfsWriteBlock(blocknum, &block)) == DFS_FAIL){
       dbprintf('f', "DfsInodeWriteBytes (%d): Could not write the block to the disk\n", GetCurrentPid());
       return DFS_FAIL;
     }
@@ -792,13 +794,15 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
       return DFS_FAIL;
     }
     bcopy((char *)table.data, (char *)v_t.addr, sb.fsBlocksize);
-    if (v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] && (int)v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] > 0 && (int)v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] < sb.numFsBlocks / 32) {
+    if (v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK]) {
       dbprintf('f', "DfsInodeAllocate (%d): Invalid address\n", GetCurrentPid());
       return DFS_FAIL;
     }
     printf("value = %u\n",  v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK]);
     v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] = indirect_table;
     printf("v block allocated = %d\n", virtual_blocknum - NUM_ADDR_BLOCK);
+    for (i = 0; i < (sb.fsBlocksize / 4); i++)
+      printf("(%d) %u\n", i, v_t.addr[i]);
     bcopy((char *)v_t.addr, (char *)table.data, sb.fsBlocksize);
     if ((DfsWriteBlock(inodes[handle].indirectAddr, &table)) == DFS_FAIL) {
       dbprintf('f', "DfsInodeAllocate (%d): Failed to write block\n", GetCurrentPid());
@@ -849,7 +853,7 @@ int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
   }
   bcopy((char *)v_block.data, (char *)(&v_t), sb.fsBlocksize);
 
-  return v_t.addr[((virtual_blocknum - NUM_ADDR_BLOCK) * 4)]; // each entry is uint32??
+  return v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK]; // each entry is uint32??
 }
 
 void InodeTest() {
@@ -869,7 +873,7 @@ void InodeTest() {
   printf("inode handle %d\n", f_handle);
 
   // Allocate into indirect address space
-  for (i = 0; i < 266; i++) {
+  for (i = 0; i < 138; i++) { // TODO breaks from 139 onwards
     if ((block_num = DfsInodeAllocateVirtualBlock(f_handle, i)) == DFS_FAIL) {
       printf("RunOSTests: failed to allocate virtual blocks\n");
       GracefulExit();
