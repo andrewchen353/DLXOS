@@ -9,7 +9,7 @@
 
 static dfs_inode inodes[DFS_INODE_MAX_NUM]; // all inodes
 static dfs_superblock sb; // superblock
-static uint32 fbv[DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32]; // Free block vector TODO check to see if supposed to include inodes and fbv
+static uint32 fbv[DFS_MAX_FILESYSTEM_SIZE / DFS_BLOCKSIZE / 32]; // Free block vector
 
 static uint32 negativeone = 0xFFFFFFFF;
 static inline uint32 invert(uint32 n) { return n ^ negativeone; }
@@ -147,7 +147,7 @@ int DfsOpenFileSystem() {
   }
    
   // Read fbv 
-  // TODO fix for loop
+  // TODO fix for loop *2
   for (i = 0; i < (sb.numFsBlocks / 32 / DISK_BLOCKSIZE) * 2 * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
     printf("reading fbv block: %d\n", sb.fbvStartBlock * 2 + i);
     if ((fbv_size = DiskReadBlock(sb.fbvStartBlock * 2 + i, &fbv_block)) == DFS_FAIL) {
@@ -231,8 +231,6 @@ int DfsAllocateBlock() {
   int i, j;
   uint32 fbv_bunch, fbv_bit, fbv_idx;
 
-  // TODO should it be 1 or 0 if available?
-  
   dbprintf('f', "DfsAllocateBlock (%d): Entering function\n", GetCurrentPid());
 
   if (!sb.valid) {
@@ -475,7 +473,7 @@ int DfsInodeOpen(char *filename) {
     }
     dbprintf('f', "-------------------DfsInodeOpen ACQUIRED i_sem-------------------\n");*/
 
-    for (i = 0; i < DFS_INODE_MAX_NUM; i++) { //TODO check to make sure we can use this constant
+    for (i = 0; i < DFS_INODE_MAX_NUM; i++) {
       if (!inodes[i].inuse) {
         handle = i;
         inodes[i].inuse = 1;
@@ -618,7 +616,7 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
     return DFS_FAIL;
   }
 
-  index = start_byte / sb.fsBlocksize; // TODO fix index calculation, or is it?
+  index = start_byte / sb.fsBlocksize;
   // TODO call translate? Can number of bytes be more than one DFS block?
   if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
     dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
@@ -654,7 +652,7 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
     return DFS_FAIL;
   }
 
-  index = start_byte / sb.fsBlocksize; // TODO fix index calculation, or is it?
+  index = start_byte / sb.fsBlocksize;
   // TODO call translate? Can number of bytes be more than one DFS block?
   if ((size = DfsReadBlock(index, &block)) == DFS_FAIL){
     dbprintf('f', "DfsInodeWriteBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
@@ -844,7 +842,6 @@ void InodeTest() {
 
   // Allocate into indirect address space
   for (i = 0; i < 266; i++) {
-    // TODO why can't this allocate?
     if ((block_num = DfsInodeAllocateVirtualBlock(f_handle, i)) == DFS_FAIL) {
       printf("RunOSTests: failed to allocate virtual blocks\n");
       GracefulExit();
@@ -852,7 +849,6 @@ void InodeTest() {
     printf("Allocated block: %d\n", block_num);
   }
   
-  // TODO why no print
   printf("handle: %d\n", f_handle);
 
   if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
