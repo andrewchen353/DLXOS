@@ -636,7 +636,7 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
     start_byte = 0;
     index++;
   }
-     
+  inodes[handle].fileSize += bytes_read; 
   dbprintf('f', "DfsInodeReadBytes (%d): Leaving function\n", GetCurrentPid());
   return bytes_read;
 }
@@ -692,7 +692,7 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
   }
 
   inodes[handle].fileSize += bytes_written; 
-
+  dbprintf('f', "DfsInodeWriteBytes (%d): Leaving function\n", GetCurrentPid());
   return bytes_written;
 }
 
