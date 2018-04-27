@@ -618,7 +618,7 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
     dbprintf('f', "DfsInodeReadBytes (%d): inode trying to access is not in use\n", GetCurrentPid());
     return DFS_FAIL;
   }
-
+  
   index = start_byte / sb.fsBlocksize;
   bytes_read = 0;
   while (num_bytes > 0) {
@@ -633,14 +633,16 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
       size = num_bytes;
 
     bcopy(block.data + start_byte % sb.fsBlocksize, (char *)(mem + bytes_read), size);
+    bcopy("\0", (char *)(mem+bytes_read+size), 1);
     printf("reading message: %s\n", block.data + start_byte % sb.fsBlocksize);
+    printf("read size: %d\n", size);
     printf("read message: %s\n", (char*) (mem +bytes_read));
     num_bytes -= size;
     bytes_read += size;
     start_byte = 0;
     index++;
   }
-  inodes[handle].fileSize += bytes_read; 
+  inodes[handle].fileSize += bytes_read;
   dbprintf('f', "DfsInodeReadBytes (%d): Leaving function\n", GetCurrentPid());
   return bytes_read;
 }
