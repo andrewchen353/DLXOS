@@ -16,8 +16,10 @@ static inline uint32 invert(uint32 n) { return n ^ negativeone; }
 
 // You have already been told about the most likely places where you should use locks. You may use 
 // additional locks if it is really necessary.
-static lock_t f_lock; // fbv lock
-static lock_t i_lock; // inode lock 
+lock_t f_lock; // fbv lock
+lock_t i_lock; // inode lock 
+sem_t f_sem; // fbv lock
+sem_t i_sem; // fbv lock
 
 // STUDENT: put your file system level functions below.
 // Some skeletons are provided. You can implement additional functions.
@@ -40,15 +42,28 @@ void DfsModuleInit() {
 
   sb.valid = 0;
 
-  if ((f_lock = LockCreate()) == SYNC_FAIL) {
+  /*if ((f_lock = LockCreate()) == SYNC_FAIL) {
     printf("DfsModuleInit (%d): Could not create the fbv lock\n", GetCurrentPid());
     GracefulExit();
   }
+  dbprintf('f', "-------------------CREATED f_lock %d-------------------\n", (int)f_lock);
 
   if ((i_lock = LockCreate()) == SYNC_FAIL) {
     printf("DfsModuleInit (%d): Could not create the inode lock\n", GetCurrentPid());
     GracefulExit();
   }
+  dbprintf('f', "-------------------CREATED i_lock %d-------------------\n", (int)i_lock);*/
+
+  /*if ((f_sem = SemCreate(0)) == SYNC_FAIL) {
+    printf("DfsModuleInit (%d): Could not create the fbv sem\n", GetCurrentPid());
+    GracefulExit();
+  }
+  dbprintf('f', "-------------------CREATED f_sem %d-------------------\n", (int)f_sem);
+  if ((i_sem = SemCreate(0)) == SYNC_FAIL) {
+    printf("DfsModuleInit (%d): Could not create the inode sem\n", GetCurrentPid());
+    GracefulExit();
+  }
+  dbprintf('f', "-------------------CREATED i_sem %d-------------------\n", (int)i_sem);*/
 
   for (i = 0; i < DFS_INODE_MAX_NUM; i++)
     inodes[i].inuse = 0;
@@ -225,10 +240,16 @@ int DfsAllocateBlock() {
     return DFS_FAIL;
   }
   
-  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsAllocateBlock ACQUIRED f_lock-------------------\n");*/
+  /*if (SemHandleSignal(f_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsAllocateBlock (%d): Could not acquire the file sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsAllocateBlock ACQUIRED f_sem-------------------\n");*/
 
   // TODO replace 512 with variables or something
   for (i = 0; i < /*sb.numFsBlocks / 32*/512; i++) {
@@ -258,10 +279,16 @@ int DfsAllocateBlock() {
 
   printf("new fbv %x\n", fbv[fbv_idx]);
 
-  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleRelease(f_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsAllocateBlock RELEASED f_lock-------------------\n");*/
+  /*if (SemHandleWait(f_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsAllocateBlock (%d): Could not release the file sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsAllocateBlock RELEASED f_sem-------------------\n");*/
 
   dbprintf('f', "DfsAllocateBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -282,10 +309,16 @@ int DfsFreeBlock(uint32 blocknum) {
     return DFS_FAIL;
   }
 
-  /*if (LockHandleAcquire(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleAcquire(f_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsFreeBlock (%d): Could not aquire the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsFreeBlock ACQUIRED f_lock-------------------\n");*/
+  /*if (SemHandleSignal(f_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsFreeBlock (%d): Could not aquire the file sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsFreeBlock ACQUIRED f_lock-------------------\n");*/
   printf("BLOCKNUM %d\n", blocknum);
 
   fbv_idx = blocknum / 32;
@@ -294,10 +327,16 @@ int DfsFreeBlock(uint32 blocknum) {
 
   fbv[fbv_idx] |= fbv_mask;
 
-  /*if (LockHandleRelease(f_lock) != SYNC_SUCCESS) {
+  /*if (LockHandleRelease(f_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsFreeBlock (%d): Could not release the file lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsFreeBlock RELEASED f_lock-------------------\n");*/
+  /*if (SemHandleWait(f_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsFreeBlock (%d): Could not release the file sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsFreeBlock RELEASED f_sem-------------------\n");*/
   
   dbprintf('f', "DfsFreeBlock (%d): Leaving function\n", GetCurrentPid());
 
@@ -425,10 +464,16 @@ int DfsInodeOpen(char *filename) {
   handle = DfsInodeFilenameExists(filename);
   
   if (handle == DFS_FAIL) {
-    /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
+    /*if (LockHandleAcquire(i_lock) != SYNC_SUCCESS) {
       dbprintf('f', "DfsInodeOpen (%d): could not acquire the inode lock\n", GetCurrentPid());
       return DFS_FAIL;
-    }*/
+    }
+    dbprintf('f', "-------------------DfsInodeOpen ACQUIRED i_lock-------------------\n");*/
+    /*if (SemHandleSignal(i_sem) == SYNC_FAIL) {
+      dbprintf('f', "DfsInodeOpen (%d): could not acquire the inode sem\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+    dbprintf('f', "-------------------DfsInodeOpen ACQUIRED i_sem-------------------\n");*/
 
     for (i = 0; i < DFS_INODE_MAX_NUM; i++) { //TODO check to make sure we can use this constant
       if (!inodes[i].inuse) {
@@ -447,7 +492,13 @@ int DfsInodeOpen(char *filename) {
     /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
       dbprintf('f', "DfsInodeOpen (%d): could not release the inode lock\n", GetCurrentPid());
       return DFS_FAIL;
-    }*/
+    }
+    dbprintf('f', "-------------------DfsInodeOpen RELEASED i_lock-------------------\n");*/
+    /*if (SemHandleWait(i_sem) == SYNC_FAIL) {
+      dbprintf('f', "DfsInodeOpen (%d): could not release the inode sem\n", GetCurrentPid());
+      return DFS_FAIL;
+    }
+    dbprintf('f', "-------------------DfsInodeOpen RELEASED i_sem-------------------\n");*/
   }
 
   dbprintf('f', "DfsInodeOpen (%d): Leaving function\n", GetCurrentPid());
@@ -480,7 +531,13 @@ int DfsInodeDelete(uint32 handle) {
   /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeDelete (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsInodeDelete ACQUIRED i_lock-------------------\n");*/
+  /*if (SemHandleSignal(i_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeDelete (%d): could not acquire the inode sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsInodeDelete ACQUIRED i_sem-------------------\n");*/
 
   for (i = 0; i < NUM_ADDR_BLOCK; i++) {
     if (inodes[handle].directAddr[i]) {
@@ -528,7 +585,13 @@ int DfsInodeDelete(uint32 handle) {
   /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeDelete (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsInodeDelete RELEASED i_lock-------------------\n");*/
+  /*if (SemHandleWait(i_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeDelete (%d): could not release the inode sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsInodeDelete RELEASED i_sem-------------------\n");*/
   
   dbprintf('f', "DfsInodeDelete (%d): Leaving function\n", GetCurrentPid());
   return DFS_SUCCESS;
@@ -658,7 +721,13 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
   /*if (LockHandleAcquire(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not acquire the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsInodeAllocateVirtualBlock ACQUIRED i_lock-------------------\n");*/
+  /*if (SemHandleSignal(i_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not acquire the inode sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsInodeAllocateVirtualBlock ACQUIRED i_sem-------------------\n");*/
 
   // check if fs_block is valid
   if((fs_block = DfsAllocateBlock()) == DFS_FAIL) {
@@ -714,7 +783,13 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
   /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not release the inode lock\n", GetCurrentPid());
     return DFS_FAIL;
-  }*/
+  }
+  dbprintf('f', "-------------------DfsInodeAllocateVirtualBlock RELEASED f_lock-------------------\n");*/
+  /*if (SemHandleWait(i_sem) == SYNC_FAIL) {
+    dbprintf('f', "DfsInodeAllocateVirtualBlock (%d): could not release the inode sem\n", GetCurrentPid());
+    return DFS_FAIL;
+  }
+  dbprintf('f', "-------------------DfsInodeAllocateVirtualBlock RELEASED f_sem-------------------\n");*/
   
   return fs_block;
 }

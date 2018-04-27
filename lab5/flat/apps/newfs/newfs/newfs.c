@@ -103,7 +103,7 @@ Printf("\nFBV\n");
     b->data[i] = 0xFF;
     //Printf("%x\n", b->data[i]);
   }
-  // FIXME FIXME FIXME FIXME DR. FIXME
+  // FIXME FIXME FIXME FIXME
   disk_write_block(41, (char *)b->data);
   NewfsWriteBlock(21, b);
   disk_write_block(43, (char *)b->data);
