@@ -684,8 +684,10 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
   while (num_bytes > 0) {
     blocknum = DfsInodeTranslateVirtualToFilesys(handle, index);
     if (!blocknum) {
-      dbprintf('f', "Nothing is stored in the index provided\n");
-      return DFS_FAIL;
+      if((blocknum = DfsInodeAllocateVirtualBlock(handle, index)) == DFS_FAIL) {
+        dbprintf('f', "DfsInodeReadBytes (%d): Cannot allocate virutal block\n", GetCurrentPid());
+        return DFS_FAIL;
+      }
     } 
     if ((size = DfsReadBlock(blocknum, &block)) == DFS_FAIL){
       dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());

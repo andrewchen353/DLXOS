@@ -17,6 +17,7 @@
 #include "clock.h"
 #include "traps.h"
 #include "dfs.h"
+#include "files.h"
 
 // Pointer to the current PCB.  This is used by the assembly language
 // routines for context switches.
@@ -839,6 +840,9 @@ void main (int argc, char *argv[])
 
   DfsModuleInit();
   dbprintf ('i', "After initializing dfs filesystem.\n");
+  FileModuleInit();
+  dbprintf ('i', "After initializing file descriptors.\n");
+
 
   // Setup command line arguments
   if (userprog != (char *)0) {
