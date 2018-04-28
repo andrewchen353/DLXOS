@@ -582,6 +582,7 @@ int DfsInodeDelete(uint32 handle) {
   }
 
   inodes[handle].inuse = 0;
+  inodes[handle].fileSize = 0;
 
   /*if (LockHandleRelease(i_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsInodeDelete (%d): could not release the inode lock\n", GetCurrentPid());
@@ -623,6 +624,10 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
   bytes_read = 0;
   while (num_bytes > 0) {
     blocknum = DfsInodeTranslateVirtualToFilesys(handle, index);
+    if (!blocknum) {
+      dbprintf('f', "Nothing is stored in the index provided\n");
+      return DFS_FAIL;
+    } 
     if ((size = DfsReadBlock(blocknum, &block)) == DFS_FAIL){
       dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
       return DFS_FAIL;
@@ -642,7 +647,7 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
     start_byte = 0;
     index++;
   }
-  inodes[handle].fileSize += bytes_read;
+
   dbprintf('f', "DfsInodeReadBytes (%d): Leaving function\n", GetCurrentPid());
   return bytes_read;
 }
@@ -678,6 +683,10 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
   bytes_written = 0;
   while (num_bytes > 0) {
     blocknum = DfsInodeTranslateVirtualToFilesys(handle, index);
+    if (!blocknum) {
+      dbprintf('f', "Nothing is stored in the index provided\n");
+      return DFS_FAIL;
+    } 
     if ((size = DfsReadBlock(blocknum, &block)) == DFS_FAIL){
       dbprintf('f', "DfsInodeReadBytes (%d): Could not read the block from the disk\n", GetCurrentPid());
       return DFS_FAIL;
@@ -865,7 +874,7 @@ int DfsInodeTranslateVirtualToFilesys(uint32 handle, uint32 virtual_blocknum) {
 }
 
 void InodeTest() {
-  uint32 f_handle;
+  uint32 f_handle, f_handle2;
   uint32 block_num;
   uint32 i;
   char *write_message, *read_message;
@@ -922,14 +931,69 @@ void InodeTest() {
     GracefulExit();
   }
   printf("Inode deleted\n");
-  
-  /*if ((f_handle = DfsInodeOpen("test1.txt")) == DFS_FAIL) {
-    printf("RunOSTests: failed to open new inode 2\n");
+
+  printf("Trying to open inode and read same information (should fail)\n");
+  if ((f_handle = DfsInodeOpen("test.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode 1\n");
     GracefulExit();
   }
-
+  printf("Handle of inode: %d\n", f_handle);
+  printf("Trying to read \"%s\"\n", write_message);
+  if ((i = DfsInodeReadBytes(f_handle, (void*)read_message, 12345, dstrlen("indirect space"))) == DFS_FAIL) {
+    printf("Correct results\n");
+  } else {
+    printf("Failed\n");
+    printf("%d\n", i);
+    printf("%s\n", read_message);
+    return;
+  }
+  printf("Deleting inode again\n");
   if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
     printf("RunOSTests: failed to delete inode\n");
     GracefulExit();
-  }*/
+  }
+
+  printf("Openning two inodes of the same name\n");  
+  if ((f_handle = DfsInodeOpen("test1.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode 2\n");
+    GracefulExit();
+  }
+  printf("Handle of first inode: %d\n", f_handle);
+
+  if ((f_handle2 = DfsInodeOpen("test1.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode 2\n");
+    GracefulExit();
+  }
+  printf("Handle of second inode: %d\n", f_handle2);
+
+  printf("Deleting inode %d\n", f_handle);
+  if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
+    printf("RunOSTests: failed to delete inode\n");
+    GracefulExit();
+  }
+
+  printf("Openning two inodes with different names\n");  
+  if ((f_handle = DfsInodeOpen("test1.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode 2\n");
+    GracefulExit();
+  }
+  printf("Handle of first inode: %d\n", f_handle);
+
+  if ((f_handle2 = DfsInodeOpen("test2.txt")) == DFS_FAIL) {
+    printf("RunOSTests: failed to open new inode 2\n");
+    GracefulExit();
+  }
+  printf("Handle of second inode: %d\n", f_handle2);
+
+  printf("Deleting inode %d\n", f_handle);
+  if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
+    printf("RunOSTests: failed to delete inode\n");
+    GracefulExit();
+  }
+
+  printf("Deleting inode %d\n", f_handle2);
+  if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
+    printf("RunOSTests: failed to delete inode\n");
+    GracefulExit();
+  }
 }
