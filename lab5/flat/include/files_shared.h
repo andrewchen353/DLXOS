@@ -10,13 +10,13 @@
 
 typedef struct file_descriptor {
   // STUDENT: put file descriptor info here
-  uint32     inuse;
+  int     inuse;
   char       filename[FILE_MAX_FILENAME_LENGTH];
-  uint32     inode;
-  uint32     eof;
-  uint32     mode;
-  uint32     currentPosition;
-  uint32     processID;
+  int     inode;
+  int     eof;
+  int     mode;
+  int     currentPosition;
+  int     processID;
 } file_descriptor;
 
 #define FILE_FAIL -1

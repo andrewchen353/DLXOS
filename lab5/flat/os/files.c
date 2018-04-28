@@ -1,6 +1,7 @@
 #include "ostraps.h"
 #include "dlxos.h"
 #include "process.h"
+#include "traps.h"
 #include "dfs.h"
 #include "files.h"
 #include "synch.h"
@@ -35,7 +36,18 @@ int FileOpen(char* filename, char* mode) {
     if (!files[i].inuse) {
       files[i].inuse = 1;
       files[i].processID = GetCurrentPid();
-      files[i].mode = (uint32)mode;
+      if (!dstrncmp("r", mode, dstrlen(mode)))
+        files[i].mode = FILE_MODE_R;
+      else if (!dstrncmp("w", mode, dstrlen(mode)))
+        files[i].mode = FILE_MODE_W;
+      else if (!dstrncmp("rw", mode, dstrlen(mode)))
+        files[i].mode = FILE_MODE_RW;
+      else {
+        dbprintf('f', "FileOpen (%d), Mode given doesnt exist\n", GetCurrentPid());
+        files[i].inuse = 0;
+        return FILE_FAIL;
+      }
+
       files[i].currentPosition = 0;
       files[i].eof = 0;
       files[i].inode = DfsInodeOpen(filename);
