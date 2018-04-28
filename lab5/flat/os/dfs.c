@@ -149,7 +149,7 @@ int DfsOpenFileSystem() {
   // Read fbv 
   // TODO fix for loop *2
   for (i = 0; i < (sb.numFsBlocks / 32 / DISK_BLOCKSIZE) * 2 * (sb.fsBlocksize / DISK_BLOCKSIZE); i++) {
-    printf("reading fbv block: %d\n", sb.fbvStartBlock * 2 + i);
+    dbprintf('f',"reading fbv block: %d\n", sb.fbvStartBlock * 2 + i);
     if ((fbv_size = DiskReadBlock(sb.fbvStartBlock * 2 + i, &fbv_block)) == DFS_FAIL) {
       dbprintf('f', "DfsOpenFileSystem (%d): Could not read fbv from disk\n", GetCurrentPid());
       return DFS_FAIL;
@@ -257,7 +257,7 @@ int DfsAllocateBlock() {
     }
   }
 
-  printf("idx %d, bunch %x\n", fbv_idx, fbv_bunch);
+  dbprintf('f',"idx %d, bunch %x\n", fbv_idx, fbv_bunch);
 
   for (j = 0; j < 32; j++) {
     if (fbv_bunch & 0x80000000) {
@@ -266,7 +266,7 @@ int DfsAllocateBlock() {
     }
     fbv_bunch = fbv_bunch << 0x1;
   }
-  printf("new bunch %x, bit %d\n", fbv_bunch, fbv_bit);
+  dbprintf('f',"new bunch %x, bit %d\n", fbv_bunch, fbv_bit);
   
   // set allocated page bit to 0
   if (fbv_bit == 31)
@@ -274,7 +274,7 @@ int DfsAllocateBlock() {
   else
     fbv[fbv_idx] = fbv[fbv_idx] & invert(0x1 << (31 - fbv_bit));//(negativeone >> (fbv_bit + 1) | ((1 >> fbv_bit) - 1));
 
-  printf("new fbv %x\n", fbv[fbv_idx]);
+  dbprintf('f',"new fbv %x\n", fbv[fbv_idx]);
 
   /*if (LockHandleRelease(f_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsAllocateBlock (%d): Could not release the file lock\n", GetCurrentPid());
@@ -316,7 +316,7 @@ int DfsFreeBlock(uint32 blocknum) {
     return DFS_FAIL;
   }
   dbprintf('f', "-------------------DfsFreeBlock ACQUIRED f_lock-------------------\n");*/
-  printf("BLOCKNUM %d\n", blocknum);
+  dbprintf('f',"BLOCKNUM %d\n", blocknum);
 
   fbv_idx = blocknum / 32;
   fbv_bit = blocknum - fbv_idx * 32;
@@ -324,7 +324,7 @@ int DfsFreeBlock(uint32 blocknum) {
 
   fbv[fbv_idx] |= fbv_mask;
 
-  printf("(%d) %x\n", fbv_idx, fbv[fbv_idx]);
+  dbprintf('f',"(%d) %x\n", fbv_idx, fbv[fbv_idx]);
 
   /*if (LockHandleRelease(f_lock) == SYNC_FAIL) {
     dbprintf('f', "DfsFreeBlock (%d): Could not release the file lock\n", GetCurrentPid());
@@ -355,7 +355,7 @@ int DfsReadBlock(uint32 blocknum, dfs_block *b) {
   int i;
   
   dbprintf('f', "DfsReadBlock (%d): Entering function\n", GetCurrentPid());
-  printf("fbv value %x\n", fbv[blocknum / 32]);
+  dbprintf('f',"fbv value %x\n", fbv[blocknum / 32]);
   if ((fbv[blocknum / 32] & (0x80000000 >> (blocknum % 32)))) {
     dbprintf('f', "DfsReadBlock (%d): Block (%d) was not previously allocated, cannot read\n", GetCurrentPid(), blocknum);
     return DFS_FAIL;
@@ -387,7 +387,7 @@ int DfsWriteBlock(uint32 blocknum, dfs_block *b){
   int i;
 
   dbprintf('f', "DfsWriteBlock (%d): Entering function\n", GetCurrentPid());
-  printf("fbv value %x\n", fbv[blocknum / 32]);
+  dbprintf('f',"fbv value %x\n", fbv[blocknum / 32]);
   if ((fbv[blocknum / 32] & (0x80000000 >> (blocknum % 32)))) {
     dbprintf('f', "DfsWriteBlock (%d): Block (%d) was not previously allocated, cannot write\n", GetCurrentPid(), blocknum);
     return DFS_FAIL;
@@ -554,11 +554,11 @@ int DfsInodeDelete(uint32 handle) {
       return DFS_FAIL;
     }
     bcopy((char *)block.data, (char *)v_t.addr, sb.fsBlocksize);
-    printf("indirect %d\n", inodes[handle].indirectAddr);
+    dbprintf('f',"indirect %d\n", inodes[handle].indirectAddr);
     /*for (i = 0; i < (sb.fsBlocksize / 4); i++) 
       printf("(%d) %d\n", i, v_t.addr[i]);*/
     for (i = 0; i < (sb.fsBlocksize / 4); i++) {
-      printf("(%d) value %u\n", i, v_t.addr[i]);
+      dbprintf('f',"(%d) value %u\n", i, v_t.addr[i]);
       if (v_t.addr[i] && ((int)v_t.addr[i]) > 0 && ((int)v_t.addr[i]) < sb.numFsBlocks / 32) {
         if (DfsFreeBlock(v_t.addr[i]) == DFS_FAIL) {
           dbprintf('f', "DfsInodeDelete (%d): Failed to free block\n", GetCurrentPid());
@@ -566,7 +566,7 @@ int DfsInodeDelete(uint32 handle) {
        }
         v_t.addr[i] = 0;
       } else {
-        printf("NOPE %d\n", i);
+        dbprintf('f',"NOPE %d\n", i);
       }
     }
     bcopy((char *)v_t.addr, (char *)block.data, sb.fsBlocksize);
@@ -634,9 +634,9 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
 
     bcopy(block.data + start_byte % sb.fsBlocksize, (char *)(mem + bytes_read), size);
     bcopy("\0", (char *)(mem+bytes_read+size), 1);
-    printf("reading message: %s\n", block.data + start_byte % sb.fsBlocksize);
-    printf("read size: %d\n", size);
-    printf("read message: %s\n", (char*) (mem +bytes_read));
+    dbprintf('f',"reading message: %s\n", block.data + start_byte % sb.fsBlocksize);
+    dbprintf('f',"read size: %d\n", size);
+    dbprintf('f',"read message: %s\n", (char*) (mem +bytes_read));
     num_bytes -= size;
     bytes_read += size;
     start_byte = 0;
@@ -661,9 +661,9 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
   dfs_block block;
 
   dbprintf('f', "DfsInodeWriteBytes (%d): Entering function\n", GetCurrentPid());
-  printf("message: %s\n", (char*) mem);
-  printf("start byte: %d\n", start_byte);
-  printf("num bytes: %d\n", num_bytes);
+  dbprintf('f',"message: %s\n", (char*) mem);
+  dbprintf('f',"start byte: %d\n", start_byte);
+  dbprintf('f',"num bytes: %d\n", num_bytes);
   if (!sb.valid) {
     dbprintf('f', "DfsInodeWriteBytes (%d): file system is not valid\n", GetCurrentPid());
     return DFS_FAIL;
@@ -688,7 +688,7 @@ int DfsInodeWriteBytes(uint32 handle, void *mem, int start_byte, int num_bytes) 
       size = num_bytes;
 
     bcopy((char *)(mem + bytes_written), block.data + start_byte % sb.fsBlocksize, size);
-    printf("written message: %s\n", block.data + start_byte % sb.fsBlocksize);
+    dbprintf('f',"written message: %s\n", block.data + start_byte % sb.fsBlocksize);
 
     if ((DfsWriteBlock(blocknum, &block)) == DFS_FAIL){
       dbprintf('f', "DfsInodeWriteBytes (%d): Could not write the block to the disk\n", GetCurrentPid());
@@ -770,7 +770,7 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
     return DFS_FAIL;
   }
 
-  printf("handle %d, block num allocated %d\n", handle, fs_block);
+  dbprintf('f',"handle %d, block num allocated %d\n", handle, fs_block);
  
   // find an unused index in directAddr table
   if (virtual_blocknum < NUM_ADDR_BLOCK)
@@ -806,11 +806,11 @@ int DfsInodeAllocateVirtualBlock(uint32 handle, uint32 virtual_blocknum) {
       dbprintf('f', "DfsInodeAllocate (%d): Invalid address\n", GetCurrentPid());
       return DFS_FAIL;
     }
-    printf("value = %u\n",  v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK]);
+    dbprintf('f',"value = %u\n",  v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK]);
     v_t.addr[virtual_blocknum - NUM_ADDR_BLOCK] = indirect_table;
-    printf("v block allocated = %d\n", virtual_blocknum - NUM_ADDR_BLOCK);
+    dbprintf('f',"v block allocated = %d\n", virtual_blocknum - NUM_ADDR_BLOCK);
     for (i = 0; i < (sb.fsBlocksize / 4); i++)
-      printf("(%d) %u\n", i, v_t.addr[i]);
+      dbprintf('f',"(%d) %u\n", i, v_t.addr[i]);
     bcopy((char *)v_t.addr, (char *)table.data, sb.fsBlocksize);
     if ((DfsWriteBlock(inodes[handle].indirectAddr, &table)) == DFS_FAIL) {
       dbprintf('f', "DfsInodeAllocate (%d): Failed to write block\n", GetCurrentPid());
@@ -868,16 +868,19 @@ void InodeTest() {
   uint32 f_handle;
   uint32 block_num;
   uint32 i;
-  char *write_message, *read_message, *read_message2;
+  char *write_message, *read_message;
 
+  printf("Starting Q4 OSTests\n");
+  printf("Opening inode\n");
   if ((f_handle = DfsInodeOpen("test.txt")) == DFS_FAIL) {
     printf("RunOSTests: failed to open new inode 1\n");
     GracefulExit();
   }
   
-  printf("inode handle %d\n", f_handle);
+  printf("Inode handle that was opened %d\n", f_handle);
 
   // Allocate into indirect address space
+  printf("Going to allocate 138 virtual blocks for inode %d\n", f_handle);
   for (i = 0; i < 138; i++) { // TODO breaks from 139 onwards
     if ((block_num = DfsInodeAllocateVirtualBlock(f_handle, i)) == DFS_FAIL) {
       printf("RunOSTests: failed to allocate virtual blocks\n");
@@ -885,33 +888,40 @@ void InodeTest() {
     }
     printf("Allocated block: %d\n", block_num);
   }
+  printf("Finished allocating blocks\n");
 
   write_message = "new inode write\0";
-  printf("%d\n", DfsInodeWriteBytes(f_handle, (void*)write_message, 40, dstrlen(write_message)));
-  printf("%d\n", DfsInodeReadBytes(f_handle, (void*)read_message, 40, dstrlen("new inode write")));
+  printf("writing message: %s\n", write_message);
+  DfsInodeWriteBytes(f_handle, (void*)write_message, 40, dstrlen(write_message));
+  DfsInodeReadBytes(f_handle, (void*)read_message, 40, dstrlen("new inode write"));
   printf("read message: %s\n\n", (char*)read_message);
 
   write_message = "same block\0";
+  printf("writing message: %s\n", write_message);
   DfsInodeWriteBytes(f_handle, (void*)write_message, 123, dstrlen(write_message));
-  DfsInodeReadBytes(f_handle, (void*)read_message2, 123, dstrlen("same block"));
-  printf("read message: %s\n\n", read_message2);
+  DfsInodeReadBytes(f_handle, (void*)read_message, 123, dstrlen("same block"));
+  printf("read message: %s\n\n", read_message);
 
   write_message = "across blocks\0";
+  printf("writing message: %s\n", write_message);
   DfsInodeWriteBytes(f_handle, (void*)write_message, 1020, dstrlen(write_message));
   DfsInodeReadBytes(f_handle, (void*)read_message, 1020, dstrlen("across blocks"));
   printf("read message: %s\n\n", read_message);
 
   write_message = "indirect space\0";
+  printf("writing message: %s\n", write_message);
   DfsInodeWriteBytes(f_handle, (void*)write_message, 12345, dstrlen(write_message));
   DfsInodeReadBytes(f_handle, (void*)read_message, 12345, dstrlen("indirect space"));
   printf("read message: %s\n\n", read_message);
 
-  printf("handle: %d\n", f_handle);
+  //printf("handle: %d\n", f_handle);
 
-  /*if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
+  printf("Deleting the inode\n");
+  if ((f_handle = DfsInodeDelete(f_handle)) == DFS_FAIL) {
     printf("RunOSTests: failed to delete inode\n");
     GracefulExit();
-  }*/
+  }
+  printf("Inode deleted\n");
   
   /*if ((f_handle = DfsInodeOpen("test1.txt")) == DFS_FAIL) {
     printf("RunOSTests: failed to open new inode 2\n");

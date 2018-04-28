@@ -2,7 +2,7 @@
 
 void main (int argc, char *argv[])
 {
-  Printf("hi from ostests\n");
+  //Printf("hi from ostests\n");
   run_os_tests();
-  Printf("hi2\n");
+  //Printf("hi2\n");
 }
