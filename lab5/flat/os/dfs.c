@@ -619,7 +619,8 @@ int DfsInodeReadBytes(uint32 handle, void *mem, int start_byte, int num_bytes) {
     dbprintf('f', "DfsInodeReadBytes (%d): inode trying to access is not in use\n", GetCurrentPid());
     return DFS_FAIL;
   }
-  
+  dbprintf('f', "num_bytes: %d\n", num_bytes); 
+ 
   index = start_byte / sb.fsBlocksize;
   bytes_read = 0;
   while (num_bytes > 0) {

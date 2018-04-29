@@ -46,7 +46,19 @@ int FileOpen(char* filename, char* mode) {
     if (!files[i].inuse) {
       files[i].inuse = 1;
       files[i].processID = GetCurrentPid();
-      if (!dstrncmp("r", mode, dstrlen(mode)))
+      if (mode[0] == 'r')
+        if (mode[1] == 'w')
+          files[i].mode = FILE_MODE_RW;
+        else
+          files[i].mode = FILE_MODE_R;
+      else if (mode[0] == 'w')
+        files[i].mode = FILE_MODE_W;  
+      else {
+        dbprintf('f', "FileOpen (%d), Mode given doesn't exist\n", GetCurrentPid());
+        files[i].inuse = 0;
+        return FILE_FAIL;
+      }
+/*    if (!dstrncmp("r", mode, dstrlen(mode)))
         files[i].mode = FILE_MODE_R;
       else if (!dstrncmp("w", mode, dstrlen(mode)))
         files[i].mode = FILE_MODE_W;
@@ -56,11 +68,15 @@ int FileOpen(char* filename, char* mode) {
         dbprintf('f', "FileOpen (%d), Mode given doesnt exist\n", GetCurrentPid());
         files[i].inuse = 0;
         return FILE_FAIL;
-      }
+      }*/
 
       files[i].currentPosition = 0;
       files[i].eof = 0;
       files[i].inode = DfsInodeOpen(filename);
+      /*if (DfsInodeFilesize(files[i].inode))
+        files[i].eof = 0;
+      else
+        files[i].eof = 1;*/
       dstrcpy(files[i].filename, filename);
       break;
     }
@@ -129,7 +145,7 @@ int FileRead(int handle, void* mem, int num_bytes) {
   if (files[handle].currentPosition + num_bytes == (DfsInodeFilesize(files[handle].inode) - 1)) {
     files[handle].eof = 1;
   } else if (files[handle].currentPosition + num_bytes >= DfsInodeFilesize(files[handle].inode)) {
-    num_bytes = DfsInodeFilesize(files[handle].inode) - files[handle].currentPosition - 1;
+    num_bytes = DfsInodeFilesize(files[handle].inode) - files[handle].currentPosition;
     files[handle].eof = 1; 
   }
  
@@ -139,6 +155,8 @@ int FileRead(int handle, void* mem, int num_bytes) {
   }
 
   files[handle].currentPosition += bytes_read;
+  bcopy("\0", (char *)(mem+bytes_read), 1);
+  printf("FileRead: currentPosition: %d\n", files[handle].currentPosition);
 
   return bytes_read;
 }
@@ -164,10 +182,10 @@ int FileWrite(int handle, void* mem, int num_bytes) {
     return FILE_FAIL;
   }
 
-  if (files[handle].eof) {
+  /*if (files[handle].eof) {
     dbprintf('f', "FileWrite (%d), Cannot write past end of file\n", GetCurrentPid());
     return FILE_FAIL;
-  }
+  }*/
 
   if ((bytes_written = DfsInodeWriteBytes(files[handle].inode, mem, files[handle].currentPosition, num_bytes)) == DFS_FAIL) {
     dbprintf('f', "FileRead (%d), Nothing written from file descriptor\n", GetCurrentPid());
@@ -175,6 +193,7 @@ int FileWrite(int handle, void* mem, int num_bytes) {
   }
 
   files[handle].currentPosition += bytes_written;
+  printf("FileWrite: currentPosition: %d\n", files[handle].currentPosition);
 
   dbprintf('f', "FileWrite (%d), Leaving function\n", GetCurrentPid());
 
@@ -205,6 +224,8 @@ int FileSeek(int handle, int num_bytes, int from_where) {
     dbprintf('f', "FileSeek (%d), Incorrect from_where\n", GetCurrentPid());
     return FILE_FAIL;
   }
+
+  dbprintf('f', "FileSeek (%d), currentPosition: %d\n", GetCurrentPid(), files[handle].currentPosition);
 
   files[handle].eof = 0;
   
@@ -249,4 +270,3 @@ uint32 FileDescFilenameExists(char *filename) {
   }
   return i;
 }
-
