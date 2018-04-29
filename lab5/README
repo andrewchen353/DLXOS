@@ -4,4 +4,4 @@ In newfs (our version of fdisk) we had to hard code the block numbers for the fb
 
 For DFS we had many issues with locks. We were able to create the lock correctly but were unable to acquire any of the locks afterwards. So, we just finished DFS without using any locks.
 
-For the filesystem, we wrote all the code but had major issues with debugging since print statements were not working in files.c. We tried looking through the file to locate the error but none were found.
+For the files api, we wrote all the code but had major issues with debugging since print statements were not working in files.c. To our knowledge q5 and q6 work. The print statments output ÿ repeatedly. But we should be ok with it.
