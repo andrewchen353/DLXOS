@@ -6,6 +6,7 @@
 //
 
 #include "misc.h"
+#include "ostraps.h"
 
 //----------------------------------------------------------------------
 //
@@ -61,6 +62,8 @@ int
 dstrncmp (const char *s1, const char *s2, int n)
 {
   int		i;
+
+  //printf("Comparing \"%s\" to \"%s\"\n", s1, s2);
 
   for (i = 0; i < n; i++) {
     // If they don't match, end the loop

@@ -16,10 +16,10 @@ static inline uint32 invert(uint32 n) { return n ^ negativeone; }
 
 // You have already been told about the most likely places where you should use locks. You may use 
 // additional locks if it is really necessary.
-lock_t f_lock; // fbv lock
-lock_t i_lock; // inode lock 
-sem_t f_sem; // fbv lock
-sem_t i_sem; // fbv lock
+static lock_t f_lock; // fbv lock
+static lock_t i_lock; // inode lock 
+static sem_t f_sem; // fbv lock
+static sem_t i_sem; // fbv lock
 
 // STUDENT: put your file system level functions below.
 // Some skeletons are provided. You can implement additional functions.

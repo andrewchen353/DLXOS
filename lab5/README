@@ -1,0 +1,7 @@
+Lab5 was full of weird issues for us.
+
+In newfs (our version of fdisk) we had to hard code the block numbers for the fbv blocks for initialization.
+
+For DFS we had many issues with locks. We were able to create the lock correctly but were unable to acquire any of the locks afterwards. So, we just finished DFS without using any locks.
+
+For the filesystem, we wrote all the code but had major issues with debugging since print statements were not working in files.c. We tried looking through the file to locate the error but none were found.

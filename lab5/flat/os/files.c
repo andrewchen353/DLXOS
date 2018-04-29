@@ -15,8 +15,14 @@ static lock_t file_lock;
 
 void FileModuleInit() {
   int i;
+  dbprintf('f', "FileModuleInit(%d): INIT\n", GetCurrentPid());
   for (i = 0; i < FILE_MAX_OPEN_FILES; i++)
     files[i].inuse = 0;
+  if ((file_lock = LockCreate()) == SYNC_FAIL) {
+    dbprintf('f', "FileModuleInit (%d): Failed to create file_lock\n", GetCurrentPid());
+    GracefulExit();
+  }
+  dbprintf('f', "Finished with file init------------------------------------------------------------------------------------------------------\n");
   return;
 }
 
@@ -33,6 +39,10 @@ int FileOpen(char* filename, char* mode) {
   }
 
   for (i = 0; i < FILE_MAX_OPEN_FILES; i++) {
+    if (LockHandleAcquire(file_lock) == SYNC_FAIL) {
+      dbprintf('f', "FileOpen(%d): Failed to acquire file_lock\n", GetCurrentPid());
+      return FILE_FAIL;
+    }
     if (!files[i].inuse) {
       files[i].inuse = 1;
       files[i].processID = GetCurrentPid();
@@ -54,6 +64,10 @@ int FileOpen(char* filename, char* mode) {
       dstrcpy(files[i].filename, filename);
       break;
     }
+    if (LockHandleRelease(file_lock) == SYNC_FAIL) {
+      dbprintf('f', "FileOpen(%d): Failed to release file_lock\n", GetCurrentPid());
+      return FILE_FAIL;
+    }
   }
 
   if (i == FILE_MAX_OPEN_FILES) {
@@ -67,7 +81,7 @@ int FileOpen(char* filename, char* mode) {
 }
 
 int FileClose(int handle) {
-  int i;
+  //int i;
 
   dbprintf('f', "FileClose (%d), Entering function\n", GetCurrentPid());
 
@@ -168,7 +182,6 @@ int FileWrite(int handle, void* mem, int num_bytes) {
 }
 
 int FileSeek(int handle, int num_bytes, int from_where) {
-  
   dbprintf('f', "FileSeek (%d), Entering function\n", GetCurrentPid());
   
   if (handle >= FILE_MAX_OPEN_FILES || handle < 0) {
