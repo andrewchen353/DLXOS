@@ -44,8 +44,6 @@ void main (int argc, char *argv[])
     Printf("File successfully opened\n");
   }
 
-  //file_seek(handle, 
-
   Printf("Reading...\n");
   file_read(handle, (void*)read_message, dstrlen(write_message));
   Printf("%s\n", read_message);
@@ -57,7 +55,7 @@ void main (int argc, char *argv[])
   
   file_seek(handle, -dstrlen(write_message), FILE_SEEK_CUR);
   read_message = NULL;
-  Printf("Reading...\n%s\n", read_message);
+  Printf("Reading...\n");
   file_read(handle, (void*) read_message, dstrlen(read_message));
   Printf("Read: %s\n", read_message);
 
@@ -67,7 +65,7 @@ void main (int argc, char *argv[])
   file_delete("test.txt");
   Printf("Finished deleting\n");
 
-  Printf("TEST3*********************************************\n");
+  Printf("\nTEST3*********************************************\n");
   if ((handle = file_open("test.txt", "rw")) == FILE_FAIL) {
     Printf("Failed to open file \"test.txt\"\n");
     return;
@@ -76,7 +74,13 @@ void main (int argc, char *argv[])
   }
 
   if (file_read(handle, (void*)read_message, dstrlen(read_message)) == FILE_FAIL)
-    Printf("YAYAYAYAYAYAYAY\n");
+    Printf("Correctly not able to read from empty file\n");
   else
-    Printf(":( %s\n", read_message);
+    Printf("We read something :( %s\n", read_message);
+
+  file_close(handle);
+  Printf("Finished closing\n");
+
+  file_delete("test.txt");
+  Printf("Finished deleting\n");
 }

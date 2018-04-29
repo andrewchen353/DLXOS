@@ -142,6 +142,11 @@ int FileRead(int handle, void* mem, int num_bytes) {
     return FILE_FAIL;
   }
 
+  if (!DfsInodeFilesize(files[handle].inode)) {
+    dbprintf("FileRead (%d), File is empty so cannot read\n", GetCurrentPid());
+    return FILE_FAIL;
+  }
+
   if (files[handle].currentPosition + num_bytes == (DfsInodeFilesize(files[handle].inode) - 1)) {
     files[handle].eof = 1;
   } else if (files[handle].currentPosition + num_bytes >= DfsInodeFilesize(files[handle].inode)) {
