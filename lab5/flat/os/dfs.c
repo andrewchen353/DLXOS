@@ -42,7 +42,7 @@ void DfsModuleInit() {
 
   sb.valid = 0;
 
-  /*if ((f_lock = LockCreate()) == SYNC_FAIL) {
+  if ((f_lock = LockCreate()) == SYNC_FAIL) {
     printf("DfsModuleInit (%d): Could not create the fbv lock\n", GetCurrentPid());
     GracefulExit();
   }
@@ -52,7 +52,7 @@ void DfsModuleInit() {
     printf("DfsModuleInit (%d): Could not create the inode lock\n", GetCurrentPid());
     GracefulExit();
   }
-  dbprintf('f', "-------------------CREATED i_lock %d-------------------\n", (int)i_lock);*/
+  dbprintf('f', "-------------------CREATED i_lock %d-------------------\n", (int)i_lock);
 
   /*if ((f_sem = SemCreate(0)) == SYNC_FAIL) {
     printf("DfsModuleInit (%d): Could not create the fbv sem\n", GetCurrentPid());

@@ -22,7 +22,7 @@ void FileModuleInit() {
     dbprintf('f', "FileModuleInit (%d): Failed to create file_lock\n", GetCurrentPid());
     GracefulExit();
   }
-  dbprintf('f', "Finished with file init------------------------------------------------------------------------------------------------------\n");
+  dbprintf('f', "Finished with file init\n");
   return;
 }
 
@@ -58,25 +58,10 @@ int FileOpen(char* filename, char* mode) {
         files[i].inuse = 0;
         return FILE_FAIL;
       }
-/*    if (!dstrncmp("r", mode, dstrlen(mode)))
-        files[i].mode = FILE_MODE_R;
-      else if (!dstrncmp("w", mode, dstrlen(mode)))
-        files[i].mode = FILE_MODE_W;
-      else if (!dstrncmp("rw", mode, dstrlen(mode)))
-        files[i].mode = FILE_MODE_RW;
-      else {
-        dbprintf('f', "FileOpen (%d), Mode given doesnt exist\n", GetCurrentPid());
-        files[i].inuse = 0;
-        return FILE_FAIL;
-      }*/
 
       files[i].currentPosition = 0;
       files[i].eof = 0;
       files[i].inode = DfsInodeOpen(filename);
-      /*if (DfsInodeFilesize(files[i].inode))
-        files[i].eof = 0;
-      else
-        files[i].eof = 1;*/
       dstrcpy(files[i].filename, filename);
       break;
     }
@@ -97,8 +82,6 @@ int FileOpen(char* filename, char* mode) {
 }
 
 int FileClose(int handle) {
-  //int i;
-
   dbprintf('f', "FileClose (%d), Entering function\n", GetCurrentPid());
 
   if (handle >= FILE_MAX_OPEN_FILES || handle < 0) {
@@ -186,11 +169,6 @@ int FileWrite(int handle, void* mem, int num_bytes) {
     dbprintf('f', "FileWrite (%d), File mode not set to write\n", GetCurrentPid());
     return FILE_FAIL;
   }
-
-  /*if (files[handle].eof) {
-    dbprintf('f', "FileWrite (%d), Cannot write past end of file\n", GetCurrentPid());
-    return FILE_FAIL;
-  }*/
 
   if ((bytes_written = DfsInodeWriteBytes(files[handle].inode, mem, files[handle].currentPosition, num_bytes)) == DFS_FAIL) {
     dbprintf('f', "FileRead (%d), Nothing written from file descriptor\n", GetCurrentPid());
