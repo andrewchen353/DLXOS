@@ -57,6 +57,8 @@ typedef struct PCB {
   int           base_prio;      // Base priority (50 for user processes)
 
   int           isidle;         // Indicates if this PCB is the idle process
+
+  char*         currentDir;
 } PCB;
 
 // Offsets of various registers from the stack pointer in the register

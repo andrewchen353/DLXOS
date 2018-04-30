@@ -4,8 +4,19 @@
 #include "dfs.h"
 #include "files_shared.h"
 
-//#define FILE_MAX_OPEN_FILES 15
+#define FILE_MODE_R 0x1
+#define FILE_MODE_W 0x2
+#define FILE_MODE_RW 0x3
 
+#define FILE_MAX_OPEN_FILES 15
 
+void FileModuleInit();
+int FileOpen(char* filename, char* mode);
+int FileClose(int handle);
+int FileRead(int handle, void* mem, int num_bytes);
+int FileWrite(int handle, void* mem, int num_bytes);
+int FileDelete(char* path);
+int MkDir(char* path, int permissions);
+int RmDir(char* path);
 
 #endif
